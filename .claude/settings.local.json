@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \":*)",
+      "Bash(python tests/test_market_data_db.py)",
+      "Bash(pip show:*)",
+      "Bash(venv/Scripts/pip install:*)",
+      "Bash(timeout 25 venv/Scripts/python scripts/scheduler.py)"
+    ]
+  }
+}
