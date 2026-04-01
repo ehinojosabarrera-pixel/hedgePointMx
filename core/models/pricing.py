@@ -12,6 +12,7 @@ Se construye en Sprint 0.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 # Tasas de interés anualizadas (valores provisionales — Sprint 1)
@@ -90,6 +91,133 @@ def calcular_forwards_estandar(spot: float,
     return [calcular_forward(spot, dias, tiie, sofr) for dias in (30, 60, 90)]
 
 
+# ---------------------------------------------------------------------------
+# Garman-Kohlhagen (Black-Scholes para divisas)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class OpcionGK:
+    """Resultado de pricing Garman-Kohlhagen para una opción sobre USD/MXN."""
+    spot: float
+    strike: float
+    plazo_dias: int
+    vol: float
+    tiie: float
+    sofr: float
+    call: float
+    put: float
+    delta_call: float
+    delta_put: float
+    vega: float          # misma para call y put (en MXN por 1% de vol)
+
+    def __str__(self) -> str:
+        sep = "-" * 55
+        return (
+            f"\n{'=' * 55}\n"
+            f"  Opción USD/MXN — Garman-Kohlhagen\n"
+            f"{sep}\n"
+            f"  Spot:    {self.spot:.4f}   Strike: {self.strike:.4f}\n"
+            f"  Plazo:   {self.plazo_dias} días        Vol:    {self.vol*100:.2f}%\n"
+            f"  TIIE:    {self.tiie*100:.2f}%         SOFR:   {self.sofr*100:.2f}%\n"
+            f"{sep}\n"
+            f"  Precio CALL:  {self.call:.4f} MXN\n"
+            f"  Precio PUT:   {self.put:.4f} MXN\n"
+            f"{sep}\n"
+            f"  Delta CALL:   {self.delta_call:+.4f}\n"
+            f"  Delta PUT:    {self.delta_put:+.4f}\n"
+            f"  Vega (1%vol): {self.vega:.4f} MXN\n"
+            f"{'=' * 55}"
+        )
+
+
+def _norm_cdf(x: float) -> float:
+    """CDF de la distribución normal estándar."""
+    return (1.0 + math.erf(x / math.sqrt(2.0))) / 2.0
+
+
+def _norm_pdf(x: float) -> float:
+    """PDF de la distribución normal estándar."""
+    return math.exp(-0.5 * x * x) / math.sqrt(2.0 * math.pi)
+
+
+def calcular_opcion_gk(
+    spot: float,
+    strike: float,
+    dias: int,
+    vol: float,
+    tiie: float = TIIE_ANUAL,
+    sofr: float = SOFR_ANUAL,
+) -> OpcionGK:
+    """
+    Precio de opción europea sobre USD/MXN usando el modelo Garman-Kohlhagen.
+
+    Fórmulas:
+        d1 = [ln(S/K) + (r_d - r_f + σ²/2)·t] / (σ·√t)
+        d2 = d1 - σ·√t
+
+        Call = S·e^(-r_f·t)·N(d1) - K·e^(-r_d·t)·N(d2)
+        Put  = K·e^(-r_d·t)·N(-d2) - S·e^(-r_f·t)·N(-d1)
+
+        Delta_call =  e^(-r_f·t)·N(d1)
+        Delta_put  = -e^(-r_f·t)·N(-d1)
+        Vega       =  S·e^(-r_f·t)·N'(d1)·√t  (por unidad de vol)
+
+    Convención de tiempo: t = días / 365.
+
+    Args:
+        spot:   Tipo de cambio spot USD/MXN.
+        strike: Precio de ejercicio (USD/MXN).
+        dias:   Plazo en días naturales.
+        vol:    Volatilidad implícita anualizada (decimal, p.ej. 0.12).
+        tiie:   Tasa doméstica (MXN) anualizada en decimal.
+        sofr:   Tasa extranjera (USD) anualizada en decimal.
+
+    Returns:
+        OpcionGK con precios y griegas.
+
+    Raises:
+        ValueError: si algún parámetro es no positivo.
+    """
+    if spot <= 0:
+        raise ValueError(f"spot debe ser positivo, recibido: {spot}")
+    if strike <= 0:
+        raise ValueError(f"strike debe ser positivo, recibido: {strike}")
+    if dias <= 0:
+        raise ValueError(f"dias debe ser positivo, recibido: {dias}")
+    if vol <= 0:
+        raise ValueError(f"volatilidad debe ser positiva, recibido: {vol}")
+
+    t = dias / 365.0
+    sqrt_t = math.sqrt(t)
+
+    d1 = (math.log(spot / strike) + (tiie - sofr + 0.5 * vol**2) * t) / (vol * sqrt_t)
+    d2 = d1 - vol * sqrt_t
+
+    disc_d = math.exp(-tiie * t)   # factor descuento doméstico
+    disc_f = math.exp(-sofr * t)   # factor descuento extranjero
+
+    call = spot * disc_f * _norm_cdf(d1) - strike * disc_d * _norm_cdf(d2)
+    put  = strike * disc_d * _norm_cdf(-d2) - spot * disc_f * _norm_cdf(-d1)
+
+    delta_call =  disc_f * _norm_cdf(d1)
+    delta_put  = -disc_f * _norm_cdf(-d1)
+    vega = spot * disc_f * _norm_pdf(d1) * sqrt_t * 0.01  # por 1% de vol
+
+    return OpcionGK(
+        spot=spot,
+        strike=strike,
+        plazo_dias=dias,
+        vol=vol,
+        tiie=tiie,
+        sofr=sofr,
+        call=call,
+        put=put,
+        delta_call=delta_call,
+        delta_put=delta_put,
+        vega=vega,
+    )
+
+
 if __name__ == "__main__":
     from core.data.market_data import fetch_usdmxn_banxico
 
@@ -113,3 +241,15 @@ if __name__ == "__main__":
         print(f"{fwd}  |  Puntos fwd: {puntos:+.1f}")
 
     print("-" * 65)
+
+    # --- Garman-Kohlhagen ---
+    print("\nPricing opción europea USD/MXN (Garman-Kohlhagen)...")
+    opcion = calcular_opcion_gk(
+        spot=spot,
+        strike=18.50,
+        dias=90,
+        vol=0.12,
+        tiie=TIIE_ANUAL,
+        sofr=SOFR_ANUAL,
+    )
+    print(opcion)
