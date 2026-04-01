@@ -1,0 +1,10 @@
+# Triggers de alertas por cliente (Sprint 2)
+clients:
+  # Ejemplo:
+  # cliente_demo:
+  #   name: "Demo"
+  #   triggers:
+  #     - type: "fx_above"
+  #       pair: "USD/MXN"
+  #       threshold: 20.50
+  #       message: "USD/MXN supero $20.50"

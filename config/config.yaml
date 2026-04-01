@@ -1,0 +1,16 @@
+app:
+  name: "HedgePoint MX"
+  version: "0.1.0"
+  environment: "development"
+
+market_monitor:
+  check_interval_minutes: 15
+  data_sources:
+    - banxico
+    - alpha_vantage
+
+notifications:
+  email:
+    enabled: true
+  whatsapp:
+    enabled: false
