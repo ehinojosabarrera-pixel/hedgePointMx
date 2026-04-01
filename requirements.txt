@@ -10,6 +10,7 @@ schedule>=1.2.0
 
 # Visualización
 matplotlib>=3.8.0
+rich>=13.0.0
 
 # Base de datos
 sqlalchemy>=2.0.0

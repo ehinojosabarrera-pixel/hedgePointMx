@@ -5,7 +5,8 @@
       "Bash(python tests/test_market_data_db.py)",
       "Bash(pip show:*)",
       "Bash(venv/Scripts/pip install:*)",
-      "Bash(timeout 25 venv/Scripts/python scripts/scheduler.py)"
+      "Bash(timeout 25 venv/Scripts/python scripts/scheduler.py)",
+      "Bash(sqlite3 /c/Users/ehino/OneDrive/Documentos/HedgePointMx/data/hedgepoint.db \".schema\")"
     ]
   }
 }
