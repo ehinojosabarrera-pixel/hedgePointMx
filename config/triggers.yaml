@@ -15,6 +15,13 @@
 # symbol: par FX en mayúsculas (USDMXN) o símbolo commodity (WTI, NATURAL_GAS)
 # =============================================================================
 
+# Destinatarios de alertas por email (agents/monitor/notifier.py)
+# Agrega tantas direcciones como sea necesario.
+recipients:
+  - ehinojosabarrera@gmail.com
+  # - trader@hedgepointmx.com
+  # - riesgo@hedgepointmx.com
+
 triggers:
 
   # ---------------------------------------------------------------------------

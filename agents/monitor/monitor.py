@@ -24,6 +24,7 @@ from pathlib import Path
 # Permite ejecutar desde la raíz del proyecto o directamente
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+import yaml
 import schedule
 from dotenv import load_dotenv
 
@@ -34,6 +35,8 @@ from agents.monitor.notifier import send_alert_email
 
 load_dotenv()
 init_db()
+
+_CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "triggers.yaml"
 
 # ---------------------------------------------------------------------------
 # Logging con timestamps
@@ -46,6 +49,18 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger("hedgepoint.monitor")
+
+
+def _load_recipients() -> list[str]:
+    """Lee la lista de destinatarios desde config/triggers.yaml → key 'recipients'."""
+    try:
+        with _CONFIG_PATH.open("r", encoding="utf-8") as fh:
+            raw = yaml.safe_load(fh) or {}
+        recipients = raw.get("recipients") or []
+        return [str(r).strip() for r in recipients if str(r).strip()]
+    except Exception as exc:
+        logger.warning("[CONFIG] No se pudieron cargar recipients: %s", exc)
+        return []
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +129,8 @@ def _check_triggers() -> None:
     for result in fired:
         logger.warning("  *** %s", result.message)
 
-    send_alert_email(fired)
+    recipients = _load_recipients()
+    send_alert_email(fired, recipients=recipients)
 
 
 def run_cycle() -> None:
