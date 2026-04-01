@@ -29,14 +29,6 @@ from core.market_data import get_all_commodities
 load_dotenv()
 init_db()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s  %(levelname)-8s  %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-    ],
-)
 logger = logging.getLogger(__name__)
 
 
@@ -96,6 +88,14 @@ def run_all() -> None:
 
 
 def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s  %(levelname)-8s  %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        handlers=[logging.StreamHandler(sys.stdout)],
+        force=True,
+    )
+
     logger.info("Scheduler HedgePoint MX iniciado.")
     logger.info("Frecuencia: cada hora. Ctrl+C para detener.")
 

@@ -2,9 +2,11 @@
 Notificador de alertas por email — HedgePoint MX.
 
 Envía un email HTML con la tabla de triggers activados usando la API HTTP de Resend.
+Antes de enviar, genera un análisis de contexto de mercado con Claude (Sonnet).
 
 Credenciales requeridas en .env:
-    RESEND_API_KEY — API key de Resend (re_xxxxxxxxxxxxxxxx)
+    RESEND_API_KEY     — API key de Resend (re_xxxxxxxxxxxxxxxx)
+    ANTHROPIC_API_KEY  — API key de Anthropic para el análisis con Claude
 
 Remitente por defecto: onboarding@resend.dev (cuenta Resend sin dominio propio)
 
@@ -17,6 +19,7 @@ import logging
 import os
 from datetime import datetime
 
+import anthropic
 import requests
 
 from agents.monitor.triggers import FiredTrigger
@@ -25,13 +28,87 @@ logger = logging.getLogger("hedgepoint.notifier")
 
 _RESEND_URL = "https://api.resend.com/emails"
 _FROM_ADDRESS = "onboarding@resend.dev"
+_ANALYSIS_MODEL = "claude-sonnet-4-6"
+
+
+# ---------------------------------------------------------------------------
+# Análisis de contexto con Claude
+# ---------------------------------------------------------------------------
+
+def generate_market_analysis(fired: list[FiredTrigger]) -> str:
+    """
+    Envía a Claude los triggers activados y datos públicos de mercado para obtener
+    un análisis breve en español (3-4 párrafos).
+
+    Solo se incluyen datos públicos de mercado (precios, niveles, cambios).
+    No se envían datos de clientes.
+
+    Returns:
+        Texto del análisis, o cadena vacía si falla la llamada.
+    """
+    api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        logger.warning("[ANALYSIS] ANTHROPIC_API_KEY no configurada — análisis omitido.")
+        return ""
+
+    # Construir resumen de triggers con datos públicos de mercado
+    trigger_lines = []
+    for ft in fired:
+        t = ft.trigger
+        trigger_lines.append(
+            f"- Trigger: {t.name} | Tipo: {t.trigger_type.value} | "
+            f"Símbolo: {t.symbol} | Valor observado: {ft.observed_value:.4f} | "
+            f"Umbral: {t.threshold:.4f} | Descripción: {t.description or '—'}"
+        )
+
+    triggers_text = "\n".join(trigger_lines)
+    symbols = sorted({ft.trigger.symbol for ft in fired})
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    prompt = f"""Eres un analista de mercados financieros especializado en México y América Latina.
+
+Se han activado las siguientes alertas de mercado el {timestamp}:
+
+{triggers_text}
+
+Activos involucrados: {', '.join(symbols)}
+
+Con base únicamente en estos datos públicos de mercado (niveles de precio, umbrales activados y contexto macroeconómico general de México y los mercados globales), redacta un análisis breve de 3 a 4 párrafos en español que explique:
+
+1. Qué está ocurriendo en el mercado según las alertas activadas.
+2. El contexto macroeconómico relevante que podría explicar estos movimientos.
+3. Qué aspectos debería considerar o monitorear un cliente con exposición a estos activos.
+
+El tono debe ser profesional, claro y orientado a la toma de decisiones. No incluyas recomendaciones de inversión específicas ni datos de clientes. Solo análisis de mercado con datos públicos."""
+
+    try:
+        client = anthropic.Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model=_ANALYSIS_MODEL,
+            max_tokens=1024,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        analysis = next(
+            (block.text for block in response.content if block.type == "text"), ""
+        )
+        logger.info("[ANALYSIS] Análisis generado con Claude (%d chars).", len(analysis))
+        return analysis
+
+    except anthropic.AuthenticationError:
+        logger.error("[ANALYSIS] ANTHROPIC_API_KEY inválida.")
+    except anthropic.APIStatusError as exc:
+        logger.error("[ANALYSIS] Error de API Anthropic %d: %s", exc.status_code, exc.message)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("[ANALYSIS] Error inesperado al llamar Claude: %s", exc)
+
+    return ""
 
 
 # ---------------------------------------------------------------------------
 # Construcción del cuerpo HTML
 # ---------------------------------------------------------------------------
 
-def _build_html(fired: list[FiredTrigger], timestamp: str) -> str:
+def _build_html(fired: list[FiredTrigger], timestamp: str, analysis: str) -> str:
     rows_html = ""
     for ft in fired:
         t = ft.trigger
@@ -44,6 +121,22 @@ def _build_html(fired: list[FiredTrigger], timestamp: str) -> str:
             f'<td style="padding:8px 12px;border:1px solid #ddd;text-align:right;">{t.threshold:.4f}</td>'
             f'<td style="padding:8px 12px;border:1px solid #ddd;color:#c0392b;">{ft.message}</td>'
             "</tr>"
+        )
+
+    # Sección de análisis: convertir saltos de línea en párrafos HTML
+    analysis_html = ""
+    if analysis:
+        paragraphs = [p.strip() for p in analysis.split("\n") if p.strip()]
+        analysis_html = (
+            '<div style="padding:20px 24px;border-top:1px solid #e0e0e0;">'
+            '<h3 style="margin:0 0 12px;color:#1a3c5e;font-size:15px;">&#128202; Análisis de contexto de mercado</h3>'
+            + "".join(
+                f'<p style="margin:0 0 10px;font-size:13px;line-height:1.6;color:#333;">{p}</p>'
+                for p in paragraphs
+            )
+            + '<p style="margin:8px 0 0;font-size:11px;color:#999;">Análisis generado por IA con datos públicos de mercado. '
+            'No constituye asesoría de inversión.</p>'
+            "</div>"
         )
 
     return f"""<!DOCTYPE html>
@@ -80,6 +173,8 @@ def _build_html(fired: list[FiredTrigger], timestamp: str) -> str:
       </table>
     </div>
 
+    {analysis_html}
+
     <div style="padding:12px 24px;background:#f0f0f0;border-top:1px solid #ddd;
                 font-size:11px;color:#888;">
       Mensaje generado autom&aacute;ticamente por HedgePoint MX Monitor. No responder.
@@ -103,7 +198,8 @@ def send_alert_email(
     recipients: list[str],
 ) -> bool:
     """
-    Envía un email HTML con los triggers activados usando la API de Resend.
+    Genera un análisis con Claude y envía un email HTML con los triggers activados
+    usando la API de Resend.
 
     Parameters
     ----------
@@ -115,7 +211,7 @@ def send_alert_email(
     Returns
     -------
     bool
-        True si la API respondió 200/201, False en cualquier error.
+        True si la API de Resend respondió 200/201, False en cualquier error.
     """
     if not fired:
         logger.debug("[EMAIL] Lista de triggers vacía — sin envío.")
@@ -132,15 +228,20 @@ def send_alert_email(
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    # Generar análisis de mercado con Claude antes de armar el email
+    analysis = generate_market_analysis(fired)
+
     plain_lines = [f"HedgePoint MX — {len(fired)} alerta(s) — {timestamp}", ""]
     for ft in fired:
         plain_lines.append(f"• {ft.message}")
+    if analysis:
+        plain_lines += ["", "--- Análisis de contexto ---", analysis]
 
     payload = {
         "from": _FROM_ADDRESS,
         "to": recipients,
         "subject": _build_subject(fired),
-        "html": _build_html(fired, timestamp),
+        "html": _build_html(fired, timestamp, analysis),
         "text": "\n".join(plain_lines),
     }
 

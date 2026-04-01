@@ -31,7 +31,7 @@ triggers:
   - name: usdmxn_nivel_alto
     type: price_above
     symbol: USDMXN
-    threshold: 20.50
+    threshold: 17.00
     active: true
     description: "Peso débil — USD/MXN supera $20.50 (zona de alerta)"
 
