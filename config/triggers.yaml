@@ -1,10 +1,87 @@
-# Triggers de alertas por cliente (Sprint 2)
-clients:
-  # Ejemplo:
-  # cliente_demo:
-  #   name: "Demo"
-  #   triggers:
-  #     - type: "fx_above"
-  #       pair: "USD/MXN"
-  #       threshold: 20.50
-  #       message: "USD/MXN supero $20.50"
+# =============================================================================
+# HedgePoint MX — Triggers de alerta de mercado
+# =============================================================================
+#
+# Tipos disponibles:
+#   price_above       — se activa cuando precio/ask supera el umbral
+#   price_below       — se activa cuando precio/ask cae por debajo del umbral
+#   volatility_above  — se activa cuando el spread bid/ask (%) supera el umbral
+#   daily_change_pct  — se activa cuando la variación porcentual vs registro
+#                       anterior supera el umbral (en valor absoluto)
+#
+# Campos obligatorios: name, type, symbol, threshold
+# Campos opcionales:   active (default: true), description
+#
+# symbol: par FX en mayúsculas (USDMXN) o símbolo commodity (WTI, NATURAL_GAS)
+# =============================================================================
+
+triggers:
+
+  # ---------------------------------------------------------------------------
+  # Tipo de cambio USD/MXN — niveles de precio
+  # ---------------------------------------------------------------------------
+
+  - name: usdmxn_nivel_alto
+    type: price_above
+    symbol: USDMXN
+    threshold: 20.50
+    active: true
+    description: "Peso débil — USD/MXN supera $20.50 (zona de alerta)"
+
+  - name: usdmxn_nivel_bajo
+    type: price_below
+    symbol: USDMXN
+    threshold: 19.50
+    active: true
+    description: "Peso fuerte — USD/MXN por debajo de $19.50 (oportunidad de cobertura)"
+
+  # ---------------------------------------------------------------------------
+  # Volatilidad intradiaria USD/MXN
+  # ---------------------------------------------------------------------------
+
+  - name: usdmxn_spread_elevado
+    type: volatility_above
+    symbol: USDMXN
+    threshold: 0.15        # 0.15% de spread bid/ask sobre el mid
+    active: true
+    description: "Spread bid/ask anómalo — posible iliquidez o evento de mercado"
+
+  # ---------------------------------------------------------------------------
+  # Movimiento porcentual USD/MXN vs registro anterior
+  # ---------------------------------------------------------------------------
+
+  - name: usdmxn_movimiento_brusco
+    type: daily_change_pct
+    symbol: USDMXN
+    threshold: 0.75        # variación ≥ 0.75% en valor absoluto
+    active: true
+    description: "Movimiento brusco de USD/MXN — revisar posiciones de cobertura"
+
+  # ---------------------------------------------------------------------------
+  # WTI Crude Oil — niveles de precio
+  # ---------------------------------------------------------------------------
+
+  - name: wti_precio_alto
+    type: price_above
+    symbol: WTI
+    threshold: 85.00
+    active: true
+    description: "WTI por encima de USD $85/bbl — presión alcista en costos energéticos"
+
+  - name: wti_precio_bajo
+    type: price_below
+    symbol: WTI
+    threshold: 65.00
+    active: true
+    description: "WTI por debajo de USD $65/bbl — señal bajista para energía"
+
+  # ---------------------------------------------------------------------------
+  # WTI — movimiento porcentual
+  # ---------------------------------------------------------------------------
+
+  - name: wti_movimiento_diario
+    type: daily_change_pct
+    symbol: WTI
+    threshold: 2.0         # variación ≥ 2% en valor absoluto
+    active: false          # desactivado por defecto — activar según necesidad
+    description: "Movimiento diario significativo en WTI"
