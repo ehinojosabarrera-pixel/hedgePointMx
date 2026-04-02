@@ -31,14 +31,14 @@ triggers:
   - name: usdmxn_nivel_alto
     type: price_above
     symbol: USDMXN
-    threshold: 17.00
+    threshold: 18.00
     active: true
     description: "Peso débil — USD/MXN supera $20.50 (zona de alerta)"
 
   - name: usdmxn_nivel_bajo
     type: price_below
     symbol: USDMXN
-    threshold: 19.50
+    threshold: 17.50
     active: true
     description: "Peso fuerte — USD/MXN por debajo de $19.50 (oportunidad de cobertura)"
 
@@ -71,7 +71,7 @@ triggers:
   - name: wti_precio_alto
     type: price_above
     symbol: WTI
-    threshold: 85.00
+    threshold: 90
     active: true
     description: "WTI por encima de USD $85/bbl — presión alcista en costos energéticos"
 
