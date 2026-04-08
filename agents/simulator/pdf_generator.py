@@ -481,9 +481,16 @@ def _portada(resultado: ResultadoSimulacion, estilos: dict) -> list:
     elementos.append(t)
     elementos.append(Spacer(1, 2 * cm))
 
-    # Fecha de generación
+    # Fecha de generación (nombres de mes en español, sin depender de locale)
+    _MESES_ES = {
+        1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
+        5: "mayo", 6: "junio", 7: "julio", 8: "agosto",
+        9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre",
+    }
+    _hoy = date.today()
+    _fecha_es = f"{_hoy.day} de {_MESES_ES[_hoy.month]} de {_hoy.year}"
     elementos.append(Paragraph(
-        f"Generado el {date.today().strftime('%d de %B de %Y')}",
+        f"Generado el {_fecha_es}",
         estilos["etiqueta_portada"],
     ))
     elementos.append(Paragraph(
@@ -681,25 +688,40 @@ def _tabla_mensual(resultado: ResultadoSimulacion, estilos: dict) -> list:
     elementos.append(HRFlowable(width="100%", thickness=1.5, color=AZUL,
                                 spaceAfter=6))
 
+    # Abreviaturas para que la tabla quepa en una página A4
+    _MESES_ABR = {
+        "01": "Ene", "02": "Feb", "03": "Mar", "04": "Abr",
+        "05": "May", "06": "Jun", "07": "Jul", "08": "Ago",
+        "09": "Sep", "10": "Oct", "11": "Nov", "12": "Dic",
+    }
+
+    def _abr_periodo(periodo: str) -> str:
+        """Convierte '2024-04' → 'Abr-24'."""
+        try:
+            anio, mes = periodo.split("-")
+            return f"{_MESES_ABR.get(mes, mes)}-{anio[2:]}"
+        except ValueError:
+            return periodo
+
     encabezados = [
-        "Mes\nMonth",
-        "TC Spot\nSpot Rate",
-        "TC Fwd\nFwd Rate",
-        "Costo Spot\n(MXN)",
-        "Fwd Teórico\n(MXN)",
-        "Spread Banco\n(MXN)",
-        "Markup HP\n(MXN)",
-        "Fee HP\n(MXN)",
-        "Costo Fwd\nTotal (MXN)",
+        "Mes",
+        "Spot",
+        "Fwd",
+        "C.Spot\n(MXN)",
+        "Fwd\n(MXN)",
+        "Spread\n(MXN)",
+        "Mkup\n(MXN)",
+        "Fee\n(MXN)",
+        "Total\nFwd",
         "Ahorro\n(MXN)",
-        "Ahorro\n(%)",
+        "Aho\n(%)",
     ]
     filas = [encabezados]
 
     r = resultado
     for p in r.periodos:
         filas.append([
-            p.periodo,
+            _abr_periodo(p.periodo),
             f"{p.spot:.4f}",
             f"{p.forward_30d:.4f}",
             f"${p.costo_spot_mxn:,.0f}",
@@ -709,7 +731,7 @@ def _tabla_mensual(resultado: ResultadoSimulacion, estilos: dict) -> list:
             f"${p.costo_fee_hp_mxn:,.0f}",
             f"${p.costo_forward_mxn:,.0f}",
             f"${p.ahorro_mxn:,.0f}",
-            f"{p.ahorro_porcentaje:.2f}%",
+            f"{p.ahorro_porcentaje:.1f}%",
         ])
 
     # Fila de totales
@@ -723,12 +745,12 @@ def _tabla_mensual(resultado: ResultadoSimulacion, estilos: dict) -> list:
         Paragraph(f"<b>${r.costo_total_fee_hp_mxn:,.0f}</b>", estilos["tabla_celda"]),
         Paragraph(f"<b>${r.costo_total_forward_mxn:,.0f}</b>", estilos["tabla_celda"]),
         Paragraph(f"<b>${r.ahorro_total_mxn:,.0f}</b>", estilos["tabla_celda"]),
-        Paragraph(f"<b>{r.ahorro_total_porcentaje:.2f}%</b>", estilos["tabla_celda"]),
+        Paragraph(f"<b>{r.ahorro_total_porcentaje:.1f}%</b>", estilos["tabla_celda"]),
     ])
 
-    col_widths = [1.6 * cm, 1.7 * cm, 1.7 * cm, 2.4 * cm,
-                  2.4 * cm, 2.2 * cm, 2.0 * cm, 2.0 * cm,
-                  2.4 * cm, 2.4 * cm, 1.6 * cm]
+    col_widths = [1.4 * cm, 1.6 * cm, 1.6 * cm, 2.2 * cm,
+                  2.1 * cm, 2.0 * cm, 1.8 * cm, 1.8 * cm,
+                  2.1 * cm, 2.1 * cm, 1.3 * cm]
     t = Table(filas, colWidths=col_widths, repeatRows=1)
 
     # Estilos base
@@ -736,7 +758,7 @@ def _tabla_mensual(resultado: ResultadoSimulacion, estilos: dict) -> list:
         ("BACKGROUND", (0, 0), (-1, 0), AZUL),
         ("TEXTCOLOR", (0, 0), (-1, 0), BLANCO),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 7.0),
+        ("FONTSIZE", (0, 0), (-1, -1), 6.5),
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#d1d5db")),
@@ -1193,26 +1215,61 @@ def _seccion_comparativa_plazos(multi: ResultadoMultiPlazo, estilos: dict) -> li
         ganador_positivo == plazo_rec,
     ])
 
-    rec_es = (
-        f"Con base en tres criterios — <b>mayor ahorro neto</b> ({ganador_ahorro}d), "
-        f"<b>menor volatilidad mensual</b> ({ganador_vol}d) y "
-        f"<b>mayor porcentaje de meses positivos</b> ({ganador_positivo}d) — "
-        f"el plazo recomendado es <b>{plazo_rec} días</b>, "
-        f"que cumple {criterios_a_favor} de 3 criterios. "
-        f"Ahorro total: <b>${mejor.ahorro_total_mxn:,.0f} MXN</b>, "
-        f"promedio mensual: <b>${mejor.ahorro_promedio_mensual_mxn:,.0f} MXN</b>, "
-        f"en {mejor.porcentaje_meses_con_ahorro:.0f}% de los meses."
-    )
-    rec_en = (
-        f"Based on three criteria — <b>highest net savings</b> ({ganador_ahorro}d), "
-        f"<b>lowest monthly volatility</b> ({ganador_vol}d), and "
-        f"<b>highest share of positive months</b> ({ganador_positivo}d) — "
-        f"the recommended tenor is <b>{plazo_rec} days</b>, "
-        f"satisfying {criterios_a_favor} of 3 criteria. "
-        f"Total savings: <b>${mejor.ahorro_total_mxn:,.0f} MXN</b>, "
-        f"avg monthly: <b>${mejor.ahorro_promedio_mensual_mxn:,.0f} MXN</b>, "
-        f"positive in {mejor.porcentaje_meses_con_ahorro:.0f}% of months."
-    )
+    todos_negativos = all(r.ahorro_total_mxn < 0 for r in resultados_ord)
+
+    if todos_negativos:
+        # Plazo óptimo = menor costo adicional (ahorro menos negativo)
+        costo_adicional = {r.parametros.plazo_forward_dias: abs(r.ahorro_total_mxn)
+                           for r in resultados_ord}
+        plazo_menor_costo = min(costo_adicional, key=costo_adicional.get)
+        mejor_en_negativo = next(
+            r for r in resultados_ord
+            if r.parametros.plazo_forward_dias == plazo_menor_costo
+        )
+        rec_es = (
+            f"En el período analizado, el peso se apreció sostenidamente frente al dólar, "
+            f"por lo que <b>ningún plazo de cobertura generó ahorro neto</b>. "
+            f"Sin embargo, el forward a <b>{plazo_menor_costo} días</b> fue el de "
+            f"menor costo adicional "
+            f"(<b>${abs(mejor_en_negativo.ahorro_total_mxn):,.0f} MXN</b>) y menor "
+            f"volatilidad mensual, lo que lo hace preferible si se decide cubrir. "
+            f"En períodos de depreciación cambiaria — que históricamente han sido "
+            f"frecuentes — la cobertura habría generado ahorros significativos."
+        )
+        rec_en = (
+            f"During the analyzed period, the peso appreciated steadily against the dollar, "
+            f"so <b>no forward tenor produced net savings</b>. "
+            f"However, the <b>{plazo_menor_costo}-day forward</b> carried the lowest additional "
+            f"cost (<b>${abs(mejor_en_negativo.ahorro_total_mxn):,.0f} MXN</b>) and the lowest "
+            f"monthly volatility, making it the preferred option if hedging is desired. "
+            f"During periods of peso depreciation — historically frequent — "
+            f"hedging would have generated significant savings."
+        )
+        bg_color = colors.HexColor("#fff8e1")
+        border_color = colors.HexColor("#f59e0b")
+    else:
+        rec_es = (
+            f"Con base en tres criterios — <b>mayor ahorro neto</b> ({ganador_ahorro}d), "
+            f"<b>menor volatilidad mensual</b> ({ganador_vol}d) y "
+            f"<b>mayor porcentaje de meses positivos</b> ({ganador_positivo}d) — "
+            f"el plazo recomendado es <b>{plazo_rec} días</b>, "
+            f"que cumple {criterios_a_favor} de 3 criterios. "
+            f"Ahorro total: <b>${mejor.ahorro_total_mxn:,.0f} MXN</b>, "
+            f"promedio mensual: <b>${mejor.ahorro_promedio_mensual_mxn:,.0f} MXN</b>, "
+            f"en {mejor.porcentaje_meses_con_ahorro:.0f}% de los meses."
+        )
+        rec_en = (
+            f"Based on three criteria — <b>highest net savings</b> ({ganador_ahorro}d), "
+            f"<b>lowest monthly volatility</b> ({ganador_vol}d), and "
+            f"<b>highest share of positive months</b> ({ganador_positivo}d) — "
+            f"the recommended tenor is <b>{plazo_rec} days</b>, "
+            f"satisfying {criterios_a_favor} of 3 criteria. "
+            f"Total savings: <b>${mejor.ahorro_total_mxn:,.0f} MXN</b>, "
+            f"avg monthly: <b>${mejor.ahorro_promedio_mensual_mxn:,.0f} MXN</b>, "
+            f"positive in {mejor.porcentaje_meses_con_ahorro:.0f}% of months."
+        )
+        bg_color = VERDE_CLARO
+        border_color = VERDE
 
     caja_rec = Table(
         [[Paragraph(rec_es, estilos["recomendacion"])],
@@ -1223,8 +1280,8 @@ def _seccion_comparativa_plazos(multi: ResultadoMultiPlazo, estilos: dict) -> li
         colWidths=[16 * cm],
     )
     caja_rec.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), VERDE_CLARO),
-        ("BOX", (0, 0), (-1, -1), 1.5, VERDE),
+        ("BACKGROUND", (0, 0), (-1, -1), bg_color),
+        ("BOX", (0, 0), (-1, -1), 1.5, border_color),
         ("TOPPADDING", (0, 0), (-1, -1), 10),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
         ("LEFTPADDING", (0, 0), (-1, -1), 12),
