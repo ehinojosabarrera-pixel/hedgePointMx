@@ -1,5 +1,5 @@
 """
-Descarga el histórico de 2 años del tipo de cambio USD/MXN FIX desde la API SIE de Banxico
+Descarga el histórico de N años del tipo de cambio USD/MXN FIX desde la API SIE de Banxico
 y lo almacena en la tabla fx_rates de la base de datos SQLite.
 
 Serie: SF43718 — Tipo de Cambio FIX USD/MXN publicado por Banxico.

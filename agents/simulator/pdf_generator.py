@@ -49,7 +49,7 @@ from reportlab.platypus import (
 )
 from reportlab.platypus.flowables import KeepTogether
 
-from agents.simulator.savings_simulator import ResultadoSimulacion, ResultadoMultiPlazo
+from agents.simulator.savings_simulator import ResultadoSimulacion, ResultadoMultiPlazo, ResumenAnual
 
 logger = logging.getLogger(__name__)
 
@@ -359,8 +359,9 @@ def _grafica_ahorro_acumulado(df_periodos: pd.DataFrame) -> Image:
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 7))
     fig.patch.set_facecolor("white")
 
-    # --- Panel superior: ahorro mensual en barras ---
-    colores_barras = ["#2d8659" if v >= 0 else "#c0392b"
+    # --- Panel superior: resultado mensual en barras ---
+    # Verde = forward ahorró vs spot; azul claro = cobertura costó más (costo de seguro, no pérdida)
+    colores_barras = ["#2d8659" if v >= 0 else "#8eafd4"
                       for v in df_periodos["ahorro_mxn"]]
     ax1.set_facecolor("#f9fafb")
     ax1.bar(
@@ -375,21 +376,31 @@ def _grafica_ahorro_acumulado(df_periodos: pd.DataFrame) -> Image:
     ax1.set_xticklabels(tick_labels, rotation=45, ha="right", fontsize=8)
     ax1.tick_params(axis="y", labelsize=8)
     ax1.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"${x:.0f}k"))
-    ax1.set_ylabel("Ahorro mensual (miles MXN)", fontsize=10, color="#374151")
-    ax1.set_title("Ahorro mensual: Forward vs Spot",
+    ax1.set_ylabel("Resultado vs Spot (miles MXN)", fontsize=10, color="#374151")
+    ax1.set_title("Resultado mensual: Forward vs Spot",
                   fontsize=12, fontweight="bold", color="#1a365d")
+    # Leyenda compacta
+    from matplotlib.patches import Patch
+    ax1.legend(
+        handles=[
+            Patch(facecolor="#2d8659", label="Ahorro vs Spot / Savings vs Spot"),
+            Patch(facecolor="#8eafd4", label="Costo de protección / Hedging cost"),
+        ],
+        fontsize=7, loc="upper right", framealpha=0.7,
+    )
     ax1.grid(True, alpha=0.3, linestyle="--")
     ax1.spines["top"].set_visible(False)
     ax1.spines["right"].set_visible(False)
 
-    # --- Panel inferior: ahorro acumulado ---
+    # --- Panel inferior: resultado acumulado ---
     ax2.set_facecolor("#f9fafb")
     ahorro_acum = df_periodos["ahorro_acumulado_mxn"] / 1000
     positivo = ahorro_acum >= 0
     ax2.fill_between(range(n), 0, ahorro_acum,
                      where=positivo, alpha=0.25, color="#2d8659")
+    # Zona bajo cero: azul claro (costo de seguro), no rojo
     ax2.fill_between(range(n), 0, ahorro_acum,
-                     where=~positivo, alpha=0.25, color="#c0392b")
+                     where=~positivo, alpha=0.20, color="#8eafd4")
     ax2.plot(range(n), ahorro_acum,
              color="#1a365d", linewidth=2, marker="o", markersize=4)
     ax2.axhline(0, color="#374151", linewidth=0.8, linestyle="--")
@@ -397,8 +408,8 @@ def _grafica_ahorro_acumulado(df_periodos: pd.DataFrame) -> Image:
     ax2.set_xticklabels(tick_labels, rotation=45, ha="right", fontsize=8)
     ax2.tick_params(axis="y", labelsize=8)
     ax2.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"${x:.0f}k"))
-    ax2.set_ylabel("Ahorro acumulado (miles MXN)", fontsize=10, color="#374151")
-    ax2.set_title("Ahorro acumulado total",
+    ax2.set_ylabel("Resultado acumulado (miles MXN)", fontsize=10, color="#374151")
+    ax2.set_title("Resultado acumulado: Forward vs Spot",
                   fontsize=12, fontweight="bold", color="#1a365d")
     ax2.grid(True, alpha=0.3, linestyle="--")
     ax2.spines["top"].set_visible(False)
@@ -503,7 +514,8 @@ def _portada(resultado: ResultadoSimulacion, estilos: dict) -> list:
 
 def _kpi_box(numero: str, etiqueta: str, es_negativo: bool = False) -> Table:
     """Genera un cuadro KPI individual."""
-    color_num = ROJO if es_negativo else VERDE
+    # Negativo = costo de protección (neutral), no pérdida → gris oscuro, no rojo
+    color_num = GRIS if es_negativo else VERDE
     estilo_num = ParagraphStyle(
         "kpi_n", fontName="Helvetica-Bold", fontSize=18,
         textColor=color_num, alignment=TA_CENTER, leading=22,
@@ -601,17 +613,43 @@ def _resumen_ejecutivo(resultado: ResultadoSimulacion, estilos: dict) -> list:
     )))
 
     # KPIs — fila 1: resultados de la cobertura
-    kpis_fila1 = [
-        (f"${r.ahorro_total_mxn:,.0f}", "Ahorro total MXN\nTotal Savings MXN",
-         r.ahorro_total_mxn < 0),
-        (f"${r.ahorro_promedio_mensual_mxn:,.0f}", "Ahorro promedio mensual\nAvg Monthly Savings",
-         r.ahorro_promedio_mensual_mxn < 0),
-        (f"{r.ahorro_total_porcentaje:.2f}%", "Ahorro sobre costo total\nSavings on Total Cost",
-         r.ahorro_total_porcentaje < 0),
-        (f"{r.porcentaje_meses_con_ahorro:.0f}%", "Meses con ahorro\nMonths with Savings",
-         r.porcentaje_meses_con_ahorro < 50),
-        (f"{r.total_meses}", "Meses analizados\nMonths Analyzed", False),
-    ]
+    # Cuando el resultado es negativo se reframea como costo de protección (seguro cambiario)
+    _vol_total_mxn = r.costo_total_spot_mxn  # proxy del volumen operado en MXN
+    _costo_proteccion_pct = (
+        abs(r.ahorro_total_mxn) / _vol_total_mxn * 100
+        if _vol_total_mxn > 0 and r.ahorro_total_mxn < 0 else 0.0
+    )
+    _margen_total_mxn = (
+        _vol_total_mxn * r.parametros.margen_utilidad
+        if r.parametros.margen_utilidad > 0 else 1.0
+    )
+    _impacto_margen_pct = (
+        abs(r.ahorro_total_mxn) / _margen_total_mxn * 100
+        if r.ahorro_total_mxn < 0 else 0.0
+    )
+    _prima_mensual = abs(r.ahorro_promedio_mensual_mxn) if r.ahorro_promedio_mensual_mxn < 0 else 0.0
+
+    if r.ahorro_total_mxn >= 0:
+        kpis_fila1 = [
+            (f"${r.ahorro_total_mxn:,.0f}", "Ahorro total MXN\nTotal Savings MXN", False),
+            (f"${r.ahorro_promedio_mensual_mxn:,.0f}", "Ahorro promedio mensual\nAvg Monthly Savings", False),
+            (f"{r.ahorro_total_porcentaje:.2f}%", "Ahorro sobre costo total\nSavings on Total Cost", False),
+            (f"{r.porcentaje_meses_con_ahorro:.0f}%", "Meses con ahorro\nMonths with Savings",
+             r.porcentaje_meses_con_ahorro < 50),
+            (f"{r.total_meses}", "Meses analizados\nMonths Analyzed", False),
+        ]
+    else:
+        kpis_fila1 = [
+            (f"{_costo_proteccion_pct:.2f}%",
+             "Costo de protección\n(% del volumen operado)", True),
+            (f"${_prima_mensual:,.0f}",
+             "Prima de seguro cambiario\nHedging premium / month", True),
+            (f"{_impacto_margen_pct:.2f}%",
+             "Impacto sobre margen\nImpact on profit margin", True),
+            (f"{r.porcentaje_meses_con_ahorro:.0f}%",
+             "Meses en que el spot fue peor\nMonths spot exceeded forward", False),
+            (f"{r.total_meses}", "Meses analizados\nMonths Analyzed", False),
+        ]
     # KPIs — fila 2: desglose de costos transaccionales
     kpis_fila2 = [
         (f"${r.costo_total_forward_teorico_mxn:,.0f}",
@@ -669,13 +707,98 @@ def _resumen_ejecutivo(resultado: ResultadoSimulacion, estilos: dict) -> list:
             ("ALIGN", (0, 0), (-1, -1), "CENTER"),
             ("ALIGN", (0, 0), (0, -1), "LEFT"),
             ("BACKGROUND", (0, 1), (-1, 1), VERDE_CLARO),
-            ("BACKGROUND", (0, 2), (-1, 2), colors.HexColor("#fdecea")),
+            ("BACKGROUND", (0, 2), (-1, 2), AZUL_CLARO),
             ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#d1d5db")),
             ("TOPPADDING", (0, 0), (-1, -1), 5),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
             ("LEFTPADDING", (0, 0), (-1, -1), 6),
         ]))
         elementos.append(t_extremos)
+
+    return elementos
+
+
+def _tabla_resumen_anual(resultado: ResultadoSimulacion, estilos: dict) -> list:
+    """
+    Genera una tabla de resumen por año calendario con tendencia FX,
+    ahorro/costo total y porcentaje del volumen.
+    Solo se incluye si hay datos de 2 o más años distintos.
+    """
+    resumenes: list[ResumenAnual] = resultado.ahorro_por_anio()
+    if len(resumenes) < 2:
+        return []  # No vale la pena mostrar si solo hay un año parcial
+
+    elementos = []
+    elementos.append(Spacer(1, 0.5 * cm))
+    elementos.append(Paragraph(
+        "Desempeño por Año / Annual Performance",
+        estilos["sub_encabezado"],
+    ))
+    elementos.append(Spacer(1, 0.2 * cm))
+
+    encabezados = [
+        Paragraph("<b>Año\nYear</b>", estilos["tabla_header"]),
+        Paragraph("<b>Tendencia FX\nFX Trend</b>", estilos["tabla_header"]),
+        Paragraph("<b>Ahorro / Costo\nSavings / Cost (MXN)</b>", estilos["tabla_header"]),
+        Paragraph("<b>% del Volumen\n% of Volume</b>", estilos["tabla_header"]),
+        Paragraph("<b>TC Spot\nProm.</b>", estilos["tabla_header"]),
+        Paragraph("<b>TC Fwd\nProm.</b>", estilos["tabla_header"]),
+    ]
+    filas = [encabezados]
+
+    for ra in resumenes:
+        # Positivo → verde; negativo → gris (costo de seguro, no pérdida)
+        _color_hex = "#2d8659" if ra.ahorro_total_mxn >= 0 else "#6b7280"
+        signo = "+" if ra.ahorro_total_mxn >= 0 else ""
+        tendencia = f"{ra.tendencia_fx}\n{ra.tendencia_fx_en}"
+        filas.append([
+            Paragraph(f"<b>{ra.anio}</b>", estilos["tabla_celda"]),
+            Paragraph(tendencia, estilos["tabla_celda"]),
+            Paragraph(
+                f"<font color='{_color_hex}'>"
+                f"<b>{signo}${ra.ahorro_total_mxn:,.0f}</b></font>",
+                estilos["tabla_celda"],
+            ),
+            Paragraph(
+                f"<font color='{_color_hex}'>"
+                f"<b>{signo}{ra.ahorro_porcentaje:.2f}%</b></font>",
+                estilos["tabla_celda"],
+            ),
+            Paragraph(f"{ra.tc_promedio_spot:.4f}", estilos["tabla_celda"]),
+            Paragraph(f"{ra.tc_promedio_forward:.4f}", estilos["tabla_celda"]),
+        ])
+
+    col_widths = [2.0 * cm, 3.5 * cm, 4.5 * cm, 3.0 * cm, 2.5 * cm, 2.5 * cm]
+    t = Table(filas, colWidths=col_widths, repeatRows=1)
+
+    estilo = [
+        ("BACKGROUND", (0, 0), (-1, 0), AZUL),
+        ("TEXTCOLOR", (0, 0), (-1, 0), BLANCO),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#d1d5db")),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [BLANCO, GRIS_CLARO]),
+    ]
+    t.setStyle(TableStyle(estilo))
+    elementos.append(t)
+    elementos.append(Spacer(1, 0.3 * cm))
+
+    # Nota explicativa bilingüe
+    nota = (
+        "Nota: Años con <b>Depreciación</b> del peso generalmente producen ahorro con cobertura forward "
+        "(el forward captura un TC más favorable que el spot futuro). "
+        "Años con <b>Apreciación</b> del peso generan costo adicional, pero eliminan la exposición a movimientos adversos. "
+        "/ <i>Note: Years of peso <b>Depreciation</b> typically generate savings with forward hedging. "
+        "Years of peso <b>Appreciation</b> incur additional cost but eliminate downside FX exposure.</i>"
+    )
+    elementos.append(Paragraph(nota, ParagraphStyle(
+        "nota_anual", fontName="Helvetica", fontSize=7, textColor=GRIS,
+        alignment=TA_JUSTIFY, leading=10, spaceAfter=4,
+    )))
 
     return elementos
 
@@ -713,8 +836,8 @@ def _tabla_mensual(resultado: ResultadoSimulacion, estilos: dict) -> list:
         "Mkup\n(MXN)",
         "Fee\n(MXN)",
         "Total\nFwd",
-        "Ahorro\n(MXN)",
-        "Aho\n(%)",
+        "Resul.\nvs Spot",
+        "(%)",
     ]
     filas = [encabezados]
 
@@ -775,14 +898,15 @@ def _tabla_mensual(resultado: ResultadoSimulacion, estilos: dict) -> list:
         ("LINEABOVE", (0, -1), (-1, -1), 1.0, AZUL),
     ]
 
-    # Colorear celdas de ahorro (columnas 9 y 10)
+    # Colorear celdas de resultado vs spot (columnas 9 y 10)
+    # Verde = el forward ahorró; gris oscuro = costo de protección (no rojo, no es una pérdida)
     for i, p in enumerate(r.periodos, start=1):
         col_ahorro = 9
         col_pct = 10
         if p.ahorro_mxn > 0:
             estilo_tabla.append(("TEXTCOLOR", (col_ahorro, i), (col_pct, i), VERDE))
         else:
-            estilo_tabla.append(("TEXTCOLOR", (col_ahorro, i), (col_pct, i), ROJO))
+            estilo_tabla.append(("TEXTCOLOR", (col_ahorro, i), (col_pct, i), GRIS))
 
     t.setStyle(TableStyle(estilo_tabla))
     elementos.append(t)
@@ -1178,9 +1302,9 @@ def _seccion_comparativa_plazos(multi: ResultadoMultiPlazo, estilos: dict) -> li
         ("BACKGROUND", (idx_mejor, 0), (idx_mejor, 0), VERDE),
         ("BOX", (idx_mejor, 1), (idx_mejor, -1), 1.2, VERDE),
     ]
-    # Colorear filas de ahorro según positivo/negativo
+    # Colorear fila de ahorro/costo: verde si positivo, gris neutro si negativo
     for i, r in enumerate(resultados_ord, start=1):
-        color = VERDE if r.ahorro_total_mxn >= 0 else ROJO
+        color = VERDE if r.ahorro_total_mxn >= 0 else GRIS
         estilo_comp.append(("TEXTCOLOR", (i, 1), (i, 1), color))
 
     t.setStyle(TableStyle(estilo_comp))
@@ -1292,6 +1416,98 @@ def _seccion_comparativa_plazos(multi: ResultadoMultiPlazo, estilos: dict) -> li
     return elementos
 
 
+def _recuadro_contexto_seguro(resultado: ResultadoSimulacion, estilos: dict) -> list:
+    """
+    Genera un recuadro de contexto que reframea el costo/ahorro de la cobertura
+    como un seguro cambiario, con impacto sobre el margen de utilidad.
+    Siempre se muestra — el mensaje varía según signo del resultado.
+    """
+    r = resultado
+    p = r.parametros
+
+    _vol_total_mxn = r.costo_total_spot_mxn
+    _margen_total_mxn = _vol_total_mxn * p.margen_utilidad if p.margen_utilidad > 0 else 1.0
+
+    # Mes con mayor movimiento favorable al importador (mayor spot vs forward)
+    _mejor_mes_str = r.mejor_mes.periodo if r.mejor_mes else "N/D"
+
+    # Costo o ahorro como % del margen anual
+    _impacto_mxn = abs(r.ahorro_total_mxn)
+    _impacto_pct_margen = (_impacto_mxn / _margen_total_mxn * 100) if _margen_total_mxn > 0 else 0.0
+
+    # Riesgo de un solo mes sin cobertura = el mayor "costo de no cubrir"
+    # = mes donde el spot fue más caro que el forward (mejor mes para el importador = sin cobertura costó más)
+    # En escenario negativo (peso se apreció), el "riesgo" histórico es el mes que más ahorró con cobertura
+    _riesgo_mes_mxn = abs(r.mejor_mes.ahorro_mxn) if r.mejor_mes else 0.0
+    _riesgo_pct_margen = (
+        _riesgo_mes_mxn / (_margen_total_mxn / r.total_meses) * 100
+        if r.total_meses > 0 and _margen_total_mxn > 0 else 0.0
+    )
+
+    if r.ahorro_total_mxn >= 0:
+        _costo_pct_vol = r.ahorro_total_porcentaje
+        texto_es = (
+            f"La cobertura generó un ahorro equivalente al <b>{_costo_pct_vol:.2f}%</b> "
+            f"del volumen operado y al <b>{_impacto_pct_margen:.1f}%</b> del margen de utilidad "
+            f"durante el período analizado. "
+            f"Compárelo con el riesgo: en el mejor mes (<b>{_mejor_mes_str}</b>), "
+            f"un mes sin cobertura habría costado <b>${_riesgo_mes_mxn:,.0f} MXN</b> adicionales, "
+            f"equivalente al <b>{_riesgo_pct_margen:.1f}%</b> del margen mensual. "
+            f"<b>La cobertura es un costo predecible que elimina un riesgo impredecible.</b>"
+        )
+        texto_en = (
+            f"Hedging generated savings equivalent to <b>{_costo_pct_vol:.2f}%</b> "
+            f"of the total FX volume and <b>{_impacto_pct_margen:.1f}%</b> of your profit margin "
+            f"over the analyzed period. "
+            f"In the best month (<b>{_mejor_mes_str}</b>), a single unhedged month would have "
+            f"cost <b>${_riesgo_mes_mxn:,.0f} MXN</b> extra — "
+            f"<b>{_riesgo_pct_margen:.1f}%</b> of that month's margin. "
+            f"<b>Hedging is a predictable cost that eliminates an unpredictable risk.</b>"
+        )
+        bg = VERDE_CLARO
+        border = VERDE
+    else:
+        _costo_pct_vol = abs(r.ahorro_total_porcentaje)
+        texto_es = (
+            f"El costo de la cobertura representa el <b>{_costo_pct_vol:.2f}%</b> "
+            f"del volumen operado — equivalente al <b>{_impacto_pct_margen:.1f}%</b> "
+            f"del margen de utilidad durante el período. "
+            f"Compárelo con el riesgo: en <b>{_mejor_mes_str}</b>, un solo mes de depreciación "
+            f"fuerte puede erosionar <b>${_riesgo_mes_mxn:,.0f} MXN</b> del margen "
+            f"(<b>{_riesgo_pct_margen:.1f}%</b> del margen mensual). "
+            f"<b>La cobertura es un costo predecible que elimina un riesgo impredecible.</b>"
+        )
+        texto_en = (
+            f"The hedging cost represents <b>{_costo_pct_vol:.2f}%</b> of your FX volume "
+            f"— equivalent to <b>{_impacto_pct_margen:.1f}%</b> of your annual profit margin. "
+            f"Compare this to the risk: a single month of sharp depreciation "
+            f"(like <b>{_mejor_mes_str}</b>) can erode "
+            f"<b>${_riesgo_mes_mxn:,.0f} MXN</b> of margin "
+            f"(<b>{_riesgo_pct_margen:.1f}%</b> of monthly margin). "
+            f"<b>Hedging is a predictable cost that eliminates an unpredictable risk.</b>"
+        )
+        bg = AZUL_CLARO
+        border = AZUL_MEDIO
+
+    caja = Table(
+        [[Paragraph(texto_es, estilos["cuerpo"])],
+         [Paragraph(texto_en, ParagraphStyle(
+             "ctx_en", fontName="Helvetica-Oblique", fontSize=8.5,
+             textColor=GRIS, alignment=TA_JUSTIFY, leading=12,
+         ))]],
+        colWidths=[16 * cm],
+    )
+    caja.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), bg),
+        ("BOX", (0, 0), (-1, -1), 1.2, border),
+        ("TOPPADDING", (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+        ("LEFTPADDING", (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+    ]))
+    return [Spacer(1, 0.4 * cm), caja]
+
+
 # ---------------------------------------------------------------------------
 # Función principal de generación
 # ---------------------------------------------------------------------------
@@ -1372,6 +1588,9 @@ def generar_pdf(
     story.extend(_resumen_ejecutivo(resultado, estilos))
     story.append(Spacer(1, 0.4 * cm))
 
+    # Tabla de resumen por año (solo si hay 2+ años distintos)
+    story.extend(_tabla_resumen_anual(resultado, estilos))
+
     # Desglose de costos (solo si hay costos transaccionales configurados)
     p = resultado.parametros
     hay_costos = p.spread_banco > 0 or p.markup_hedgepoint > 0 or p.fee_mensual > 0
@@ -1393,6 +1612,9 @@ def generar_pdf(
                             estilos["encabezado_seccion"]))
     story.append(HRFlowable(width="100%", thickness=1.5, color=AZUL, spaceAfter=6))
     story.append(_grafica_ahorro_acumulado(df_periodos))
+
+    # Recuadro de contexto: costo de cobertura vs riesgo de no cubrir
+    story.extend(_recuadro_contexto_seguro(resultado, estilos))
 
     # Comparativa multi-plazo (si se proveyó)
     if multi_plazo is not None:

@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # Asegurar que el root del proyecto esté en el path
@@ -189,7 +190,7 @@ def ejecutar_simulacion(
     margen: float,
     frecuencia: str,
     output: str,
-    years: int = 2,
+    years: int = 5,
     spread: float = 0.05,
     markup: float = 0.04,
     fee: float = 15_000.0,
@@ -324,8 +325,8 @@ Ejemplos:
     parser.add_argument(
         "--years",
         type=int,
-        default=2,
-        help="Años de histórico a simular (default: 2)",
+        default=5,
+        help="Años de histórico a simular (default: 5)",
     )
     parser.add_argument(
         "--spread",
@@ -358,6 +359,8 @@ Ejemplos:
 
     args = parser.parse_args()
 
+    _ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+
     # Modo demo: importador mediano de referencia, --plazos activado por defecto
     if args.demo:
         print("\n[DEMO] Usando datos de ejemplo: importador mediano ($300k USD/mes, 12% margen)")
@@ -368,7 +371,7 @@ Ejemplos:
         markup = args.markup
         fee = args.fee
         con_plazos = True         # siempre activo en modo demo
-        output = args.output or "output/reporte_demo_importador.pdf"
+        output = args.output or f"output/reporte_demo_importador_{_ts}.pdf"
     elif args.volumen is not None and args.margen is not None:
         volumen = args.volumen
         margen = args.margen / 100.0 if args.margen > 1 else args.margen
@@ -377,7 +380,7 @@ Ejemplos:
         markup = args.markup
         fee = args.fee
         con_plazos = args.plazos
-        output = args.output or "output/reporte_simulacion.pdf"
+        output = args.output or f"output/reporte_simulacion_{_ts}.pdf"
     else:
         # Modo interactivo
         params_i = _solicitar_parametros_interactivo()
@@ -388,7 +391,9 @@ Ejemplos:
         markup = args.markup
         fee = args.fee
         con_plazos = args.plazos
-        output = args.output or params_i["output"]
+        # El nombre interactivo también lleva timestamp
+        base = params_i["output"].replace(".pdf", "")
+        output = args.output or f"{base}_{_ts}.pdf"
 
     # Verificar / descargar histórico
     if not args.skip_download:

@@ -127,6 +127,57 @@ class ResultadoPeriodo:
 
 
 @dataclass
+class ResumenAnual:
+    """Resumen agregado de la simulación para un año calendario."""
+    anio: int
+    """Año calendario."""
+
+    meses: int
+    """Cantidad de meses simulados en el año."""
+
+    ahorro_total_mxn: float
+    """Ahorro neto total del año en MXN (positivo = se ahorró, negativo = costó más)."""
+
+    costo_total_spot_mxn: float
+    """Costo total pagando al spot en el año."""
+
+    ahorro_porcentaje: float
+    """Ahorro como porcentaje del costo spot del año."""
+
+    tc_promedio_spot: float
+    """Tipo de cambio spot promedio del año."""
+
+    tc_promedio_forward: float
+    """Tipo de cambio forward promedio del año."""
+
+    @property
+    def tendencia_fx(self) -> str:
+        """
+        Indica la tendencia del peso durante el año.
+        Si el forward pactado fue mayor al spot de compra, el peso se depreció (favorable).
+        Si el forward fue menor, el peso se apreció (desfavorable para el importador).
+        """
+        diff = self.tc_promedio_forward - self.tc_promedio_spot
+        if diff > 0.10:
+            return "Depreciación"
+        elif diff < -0.10:
+            return "Apreciación"
+        else:
+            return "Estable"
+
+    @property
+    def tendencia_fx_en(self) -> str:
+        """English version of FX trend label."""
+        diff = self.tc_promedio_forward - self.tc_promedio_spot
+        if diff > 0.10:
+            return "Depreciation"
+        elif diff < -0.10:
+            return "Appreciation"
+        else:
+            return "Stable"
+
+
+@dataclass
 class ResultadoSimulacion:
     """Resultado completo de la simulación de ahorro."""
     parametros: ParametrosCliente
@@ -277,6 +328,39 @@ class ResultadoSimulacion:
             )
         lineas.append("=" * 65)
         return "\n".join(lineas)
+
+    def ahorro_por_anio(self) -> list[ResumenAnual]:
+        """
+        Agrupa los períodos por año calendario y calcula el resumen anual.
+
+        Returns:
+            Lista de ResumenAnual ordenada cronológicamente.
+        """
+        from collections import defaultdict
+
+        grupos: dict[int, list[ResultadoPeriodo]] = defaultdict(list)
+        for p in self.periodos:
+            anio = int(p.periodo.split("-")[0])
+            grupos[anio].append(p)
+
+        resumenes = []
+        for anio in sorted(grupos):
+            ps = grupos[anio]
+            ahorro = sum(p.ahorro_mxn for p in ps)
+            costo_spot = sum(p.costo_spot_mxn for p in ps)
+            pct = (ahorro / costo_spot * 100) if costo_spot > 0 else 0.0
+            tc_spot_prom = sum(p.spot for p in ps) / len(ps)
+            tc_fwd_prom = sum(p.forward_30d for p in ps) / len(ps)
+            resumenes.append(ResumenAnual(
+                anio=anio,
+                meses=len(ps),
+                ahorro_total_mxn=ahorro,
+                costo_total_spot_mxn=costo_spot,
+                ahorro_porcentaje=pct,
+                tc_promedio_spot=tc_spot_prom,
+                tc_promedio_forward=tc_fwd_prom,
+            ))
+        return resumenes
 
 
 def _cargar_fx_historico(
