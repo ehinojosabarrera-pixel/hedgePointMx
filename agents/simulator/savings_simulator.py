@@ -210,6 +210,34 @@ class ResultadoSimulacion:
     porcentaje_meses_con_ahorro: float = field(init=False)
     total_meses: int = field(init=False)
 
+    # --- Métricas de protección contra peor escenario ---
+
+    danio_total_evitado_mxn: float = field(init=False)
+    """Suma de ahorros en todos los meses donde el forward fue mejor que el spot.
+    Representa el daño total que la cobertura habría evitado."""
+
+    perdida_maxima_un_mes_mxn: float = field(init=False)
+    """Mayor exposición negativa en un solo mes sin cobertura (vs con cobertura).
+    Equivale al ahorro del mejor mes — lo que el cliente habría perdido de más
+    si ese mes no hubiera tenido forward."""
+
+    peor_trimestre_spot_mxn: float = field(init=False)
+    """Costo acumulado del peor bloque de 3 meses consecutivos SIN cobertura,
+    medido como cuánto más caro habría sido el spot vs el forward en esos 3 meses."""
+
+    peor_trimestre_periodos: list[str] = field(init=False)
+    """Lista de los periodos (YYYY-MM) que forman el peor trimestre consecutivo."""
+
+    peor_racha_meses: int = field(init=False)
+    """Duración en meses de la racha consecutiva más larga donde el spot
+    fue más caro que el forward (depreciación sostenida favorable para cubrir)."""
+
+    peor_racha_periodos: list[str] = field(init=False)
+    """Periodos que conforman la peor racha consecutiva."""
+
+    peor_racha_danio_mxn: float = field(init=False)
+    """Daño total acumulado durante la peor racha consecutiva."""
+
     def __post_init__(self) -> None:
         self._calcular_estadisticas()
 
@@ -232,6 +260,13 @@ class ResultadoSimulacion:
             self.meses_con_ahorro = 0
             self.porcentaje_meses_con_ahorro = 0.0
             self.total_meses = 0
+            self.danio_total_evitado_mxn = 0.0
+            self.perdida_maxima_un_mes_mxn = 0.0
+            self.peor_trimestre_spot_mxn = 0.0
+            self.peor_trimestre_periodos = []
+            self.peor_racha_meses = 0
+            self.peor_racha_periodos = []
+            self.peor_racha_danio_mxn = 0.0
             return
 
         self.costo_total_spot_mxn = sum(p.costo_spot_mxn for p in self.periodos)
@@ -261,6 +296,68 @@ class ResultadoSimulacion:
         self.porcentaje_meses_con_ahorro = (
             self.meses_con_ahorro / self.total_meses * 100
         )
+
+        self._calcular_metricas_proteccion()
+
+    def _calcular_metricas_proteccion(self) -> None:
+        """
+        Calcula las métricas de protección contra el peor escenario.
+        Se llama desde _calcular_estadisticas después de validar que hay períodos.
+        """
+        ahorros = [p.ahorro_mxn for p in self.periodos]
+        n = len(ahorros)
+
+        # 1. Daño total evitado: suma de ahorros positivos (meses donde el forward protegió)
+        self.danio_total_evitado_mxn = sum(a for a in ahorros if a > 0)
+
+        # 2. Pérdida máxima evitada en un solo mes
+        #    = mayor ahorro positivo = lo que más habría costado un mes sin cobertura
+        positivos = [a for a in ahorros if a > 0]
+        self.perdida_maxima_un_mes_mxn = max(positivos) if positivos else 0.0
+
+        # 3. Peor trimestre consecutivo sin cobertura (3 meses donde el spot fue más caro)
+        #    Buscamos la ventana de 3 meses con mayor suma de ahorros positivos
+        #    (es decir, donde el spot habría sido más costoso que el forward)
+        mejor_ventana_3_suma = float("-inf")
+        mejor_ventana_3_idx = 0
+        for i in range(n - 2):
+            suma = sum(max(ahorros[i + j], 0) for j in range(3))
+            if suma > mejor_ventana_3_suma:
+                mejor_ventana_3_suma = suma
+                mejor_ventana_3_idx = i
+        self.peor_trimestre_spot_mxn = max(mejor_ventana_3_suma, 0.0)
+        self.peor_trimestre_periodos = [
+            self.periodos[mejor_ventana_3_idx + j].periodo for j in range(min(3, n))
+        ] if n >= 3 else [p.periodo for p in self.periodos]
+
+        # 4. Peor racha consecutiva: secuencia más larga donde ahorro > 0
+        #    (el spot fue más caro que el forward de forma continua)
+        mejor_racha_inicio = 0
+        mejor_racha_len = 0
+        mejor_racha_suma = 0.0
+        racha_inicio = 0
+        racha_len = 0
+        racha_suma = 0.0
+        for i, a in enumerate(ahorros):
+            if a > 0:
+                if racha_len == 0:
+                    racha_inicio = i
+                racha_len += 1
+                racha_suma += a
+                if racha_len > mejor_racha_len:
+                    mejor_racha_len = racha_len
+                    mejor_racha_inicio = racha_inicio
+                    mejor_racha_suma = racha_suma
+            else:
+                racha_len = 0
+                racha_suma = 0.0
+
+        self.peor_racha_meses = mejor_racha_len
+        self.peor_racha_periodos = [
+            self.periodos[mejor_racha_inicio + j].periodo
+            for j in range(mejor_racha_len)
+        ] if mejor_racha_len > 0 else []
+        self.peor_racha_danio_mxn = mejor_racha_suma
 
     def to_dataframe(self) -> pd.DataFrame:
         """Convierte los períodos a un DataFrame de pandas para análisis o graficación."""
