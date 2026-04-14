@@ -1,0 +1,1977 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HedgePoint MX — Consultoría de Riesgo Cambiario para PyMEs</title>
+  <meta name="description" content="Protege la rentabilidad de tu empresa frente a la volatilidad del tipo de cambio USD/MXN. Asesoría de riesgo cambiario potenciada por IA para PyMEs mexicanas." />
+  <meta name="keywords" content="riesgo cambiario, cobertura cambiaria, PyMEs México, USD MXN, consultoría financiera, hedging, derivados" />
+  <meta name="author" content="HedgePoint MX" />
+  <!-- Open Graph -->
+  <meta property="og:title" content="HedgePoint MX — Consultoría de Riesgo Cambiario" />
+  <meta property="og:description" content="Protege tu margen del tipo de cambio con asesoría de IA a fracción del costo de las Big 4." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://hedgepointmx.github.io" />
+  <meta property="og:image" content="https://hedgepointmx.github.io/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="HedgePoint MX" />
+  <meta name="twitter:description" content="Protege tu rentabilidad del tipo de cambio con IA." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ===========================
+       RESET & BASE
+    =========================== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0a0e1a;
+      --bg2: #0f1525;
+      --surface: rgba(255,255,255,0.04);
+      --surface2: rgba(255,255,255,0.07);
+      --border: rgba(255,255,255,0.08);
+      --border2: rgba(0,212,170,0.3);
+      --cyan: #00d4aa;
+      --blue: #3b82f6;
+      --cyan2: #00b894;
+      --text: #e8edf5;
+      --text2: #8a95a8;
+      --text3: #5a6478;
+      --white: #ffffff;
+      --font-display: 'Playfair Display', Georgia, serif;
+      --font-body: 'DM Sans', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+      --radius: 12px;
+      --radius-lg: 20px;
+      --shadow: 0 4px 24px rgba(0,0,0,0.4);
+      --shadow-glow: 0 0 40px rgba(0,212,170,0.15);
+      --transition: 0.3s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    html { scroll-behavior: smooth; font-size: 16px; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Noise texture overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.4;
+    }
+
+    /* Gradient bg blobs */
+    body::after {
+      content: '';
+      position: fixed;
+      top: -20%;
+      right: -10%;
+      width: 60vw;
+      height: 60vw;
+      background: radial-gradient(ellipse at center, rgba(0,212,170,0.06) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .blob-left {
+      position: fixed;
+      bottom: 10%;
+      left: -15%;
+      width: 50vw;
+      height: 50vw;
+      background: radial-gradient(ellipse at center, rgba(59,130,246,0.05) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    section, nav, footer { position: relative; z-index: 1; }
+
+    .container {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    h1, h2, h3, h4 { font-family: var(--font-display); line-height: 1.2; }
+    p { font-family: var(--font-body); }
+
+    .gradient-text {
+      background: linear-gradient(135deg, var(--cyan) 0%, var(--blue) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      border-radius: 8px;
+      font-family: var(--font-body);
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+      text-decoration: none;
+      border: none;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--cyan) 0%, var(--blue) 100%);
+      color: var(--bg);
+      box-shadow: 0 4px 20px rgba(0,212,170,0.3);
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(0,212,170,0.45);
+    }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--text);
+      border: 1.5px solid var(--border);
+    }
+    .btn-outline:hover {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      background: rgba(0,212,170,0.06);
+    }
+
+    .section-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--cyan);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .section-label::before {
+      content: '';
+      display: block;
+      width: 24px;
+      height: 1px;
+      background: var(--cyan);
+    }
+
+    /* Fade-in animations */
+    .fade-up {
+      opacity: 0;
+      transform: translateY(32px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .fade-up.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .fade-up.delay-1 { transition-delay: 0.1s; }
+    .fade-up.delay-2 { transition-delay: 0.2s; }
+    .fade-up.delay-3 { transition-delay: 0.3s; }
+    .fade-up.delay-4 { transition-delay: 0.4s; }
+
+    /* ===========================
+       NAV
+    =========================== */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 20px 0;
+      transition: var(--transition);
+    }
+    nav.scrolled {
+      background: rgba(10,14,26,0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 0;
+    }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .nav-logo {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 700;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .nav-logo span:first-child { color: var(--white); }
+    .nav-logo span:last-child { color: var(--cyan); }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--text2);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--white); }
+
+    .nav-cta { margin-left: 8px; }
+    .nav-cta .btn { padding: 10px 20px; font-size: 0.875rem; }
+
+    .hamburger {
+      display: none;
+      flex-direction: column;
+      gap: 5px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px;
+    }
+    .hamburger span {
+      display: block;
+      width: 22px;
+      height: 2px;
+      background: var(--text);
+      border-radius: 2px;
+      transition: var(--transition);
+    }
+    .hamburger.open span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
+    .hamburger.open span:nth-child(2) { opacity: 0; }
+    .hamburger.open span:nth-child(3) { transform: rotate(-45deg) translate(5px, -5px); }
+
+    .mobile-menu {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(10,14,26,0.97);
+      backdrop-filter: blur(20px);
+      z-index: 99;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 32px;
+    }
+    .mobile-menu.open { display: flex; }
+    .mobile-menu a {
+      color: var(--text);
+      text-decoration: none;
+      font-family: var(--font-display);
+      font-size: 1.8rem;
+      font-weight: 600;
+      transition: color 0.2s;
+    }
+    .mobile-menu a:hover { color: var(--cyan); }
+    .mobile-menu .btn { font-size: 1rem; }
+
+    /* ===========================
+       HERO
+    =========================== */
+    #inicio {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      padding: 120px 0 80px;
+    }
+
+    .hero-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 64px;
+      align-items: center;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(0,212,170,0.08);
+      border: 1px solid rgba(0,212,170,0.25);
+      border-radius: 100px;
+      padding: 6px 16px 6px 10px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--cyan);
+      margin-bottom: 28px;
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--cyan);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+      flex-shrink: 0;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(0,212,170,0.5); }
+      50% { box-shadow: 0 0 0 6px rgba(0,212,170,0); }
+    }
+
+    .hero-title {
+      font-size: clamp(2.2rem, 4.5vw, 3.4rem);
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 20px;
+      color: var(--white);
+    }
+
+    .hero-subtitle {
+      font-size: 1.1rem;
+      color: var(--text2);
+      line-height: 1.7;
+      margin-bottom: 36px;
+      max-width: 480px;
+    }
+
+    .hero-buttons {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    /* FX Card */
+    .fx-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: var(--shadow), var(--shadow-glow);
+      backdrop-filter: blur(8px);
+    }
+
+    .fx-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .fx-pair {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--text2);
+      letter-spacing: 0.05em;
+    }
+
+    .fx-live {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--cyan);
+    }
+
+    .live-dot {
+      width: 6px;
+      height: 6px;
+      background: #22c55e;
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+
+    .fx-rate {
+      font-family: var(--font-mono);
+      font-size: 2.8rem;
+      font-weight: 500;
+      color: var(--white);
+      letter-spacing: -0.02em;
+      margin-bottom: 4px;
+    }
+
+    .fx-change {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: #f97316;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 20px;
+    }
+
+    /* Mini SVG chart */
+    .mini-chart {
+      width: 100%;
+      height: 60px;
+      margin-bottom: 20px;
+    }
+
+    .fx-alert {
+      background: rgba(0,212,170,0.06);
+      border: 1px solid rgba(0,212,170,0.2);
+      border-left: 3px solid var(--cyan);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+
+    .fx-alert-label {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--cyan);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .fx-alert-text {
+      font-size: 0.85rem;
+      color: var(--text);
+      line-height: 1.4;
+    }
+
+    .fx-alert-text strong { color: var(--cyan); }
+
+    .fx-footer {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .fx-stat {
+      flex: 1;
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .fx-stat-label {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--text3);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+
+    .fx-stat-value {
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    /* ===========================
+       PROBLEMA
+    =========================== */
+    #problema {
+      padding: 100px 0;
+      background: linear-gradient(180deg, transparent 0%, rgba(15,21,37,0.6) 50%, transparent 100%);
+    }
+
+    .section-heading {
+      text-align: center;
+      margin-bottom: 64px;
+    }
+
+    .section-heading h2 {
+      font-size: clamp(1.8rem, 3.5vw, 2.8rem);
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 16px;
+    }
+
+    .section-heading p {
+      font-size: 1.05rem;
+      color: var(--text2);
+      max-width: 540px;
+      margin: 0 auto;
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    .problem-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 32px 28px;
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+    .problem-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--cyan), var(--blue));
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .problem-card:hover {
+      border-color: rgba(0,212,170,0.2);
+      background: var(--surface2);
+      transform: translateY(-4px);
+      box-shadow: var(--shadow);
+    }
+    .problem-card:hover::before { opacity: 1; }
+
+    .card-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      font-size: 1.4rem;
+    }
+
+    .icon-orange { background: rgba(249,115,22,0.12); border: 1px solid rgba(249,115,22,0.2); }
+    .icon-red { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.2); }
+    .icon-purple { background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.2); }
+
+    .card-stat {
+      font-family: var(--font-mono);
+      font-size: 2rem;
+      font-weight: 500;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .stat-orange { color: #f97316; }
+    .stat-red { color: #ef4444; }
+    .stat-purple { color: #8b5cf6; }
+
+    .problem-card h3 {
+      font-family: var(--font-body);
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--white);
+      margin-bottom: 10px;
+    }
+
+    .problem-card p {
+      font-size: 0.9rem;
+      color: var(--text2);
+      line-height: 1.6;
+    }
+
+    /* ===========================
+       SOLUCIÓN
+    =========================== */
+    #solucion {
+      padding: 100px 0;
+    }
+
+    .solution-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: center;
+    }
+
+    .steps-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .step {
+      display: flex;
+      gap: 24px;
+      position: relative;
+    }
+
+    .step-left {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .step-num {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 2px solid var(--border2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--cyan);
+      background: rgba(0,212,170,0.06);
+      flex-shrink: 0;
+      transition: var(--transition);
+    }
+
+    .step:hover .step-num {
+      background: rgba(0,212,170,0.15);
+      border-color: var(--cyan);
+      box-shadow: 0 0 20px rgba(0,212,170,0.2);
+    }
+
+    .step-line {
+      flex: 1;
+      width: 1px;
+      background: linear-gradient(180deg, var(--border2) 0%, transparent 100%);
+      margin: 8px 0;
+      min-height: 40px;
+    }
+
+    .step:last-child .step-line { display: none; }
+
+    .step-content {
+      padding-bottom: 40px;
+      flex: 1;
+    }
+    .step:last-child .step-content { padding-bottom: 0; }
+
+    .step-content h3 {
+      font-family: var(--font-body);
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--white);
+      margin-bottom: 8px;
+      margin-top: 8px;
+    }
+
+    .step-content p {
+      font-size: 0.9rem;
+      color: var(--text2);
+      line-height: 1.6;
+    }
+
+    .step-tag {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--cyan);
+      background: rgba(0,212,170,0.08);
+      border: 1px solid rgba(0,212,170,0.2);
+      border-radius: 4px;
+      padding: 2px 8px;
+      margin-bottom: 4px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    /* Dashboard mock */
+    .dashboard-mock {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow), var(--shadow-glow);
+    }
+
+    .dash-topbar {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .dash-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .dash-title {
+      margin-left: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text2);
+    }
+
+    .dash-body { padding: 20px; }
+
+    .dash-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .dash-stat {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .dash-stat-label {
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 6px;
+    }
+
+    .dash-stat-val {
+      font-family: var(--font-mono);
+      font-size: 1.2rem;
+      color: var(--white);
+    }
+
+    .dash-stat-change {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      margin-top: 2px;
+    }
+
+    .text-green { color: #22c55e; }
+    .text-red { color: #ef4444; }
+    .text-orange { color: #f97316; }
+    .text-cyan { color: var(--cyan); }
+
+    .dash-chart-area {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+
+    .dash-chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .dash-chart-title {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .dash-badges {
+      display: flex;
+      gap: 8px;
+    }
+
+    .dash-badge {
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    .badge-green { background: rgba(34,197,94,0.12); color: #22c55e; border: 1px solid rgba(34,197,94,0.2); }
+    .badge-orange { background: rgba(249,115,22,0.12); color: #f97316; border: 1px solid rgba(249,115,22,0.2); }
+
+    .dash-alerts {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .dash-alert-item {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.78rem;
+    }
+
+    .alert-icon { font-size: 0.9rem; }
+
+    .alert-text { color: var(--text2); flex: 1; }
+    .alert-text strong { color: var(--text); }
+
+    .alert-time {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--text3);
+    }
+
+    /* ===========================
+       DIFERENCIADORES
+    =========================== */
+    #diferenciadores {
+      padding: 100px 0;
+      background: linear-gradient(180deg, transparent 0%, rgba(15,21,37,0.5) 50%, transparent 100%);
+    }
+
+    .diff-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      margin-bottom: 64px;
+    }
+
+    .diff-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 32px 28px;
+      transition: var(--transition);
+      text-align: center;
+    }
+    .diff-card:hover {
+      border-color: rgba(0,212,170,0.2);
+      background: var(--surface2);
+      transform: translateY(-4px);
+      box-shadow: var(--shadow);
+    }
+
+    .diff-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(0,212,170,0.12), rgba(59,130,246,0.12));
+      border: 1px solid rgba(0,212,170,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      margin: 0 auto 20px;
+    }
+
+    .diff-card h3 {
+      font-family: var(--font-body);
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--white);
+      margin-bottom: 12px;
+    }
+
+    .diff-card p {
+      font-size: 0.9rem;
+      color: var(--text2);
+      line-height: 1.6;
+    }
+
+    /* Comparison table */
+    .comparison-wrap {
+      overflow-x: auto;
+    }
+
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .comparison-table th {
+      padding: 16px 20px;
+      font-family: var(--font-body);
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .comparison-table th:first-child { text-align: left; color: var(--text2); }
+
+    .th-hedge {
+      background: linear-gradient(135deg, rgba(0,212,170,0.1), rgba(59,130,246,0.1));
+      color: var(--cyan);
+    }
+
+    .th-banco { color: var(--text2); }
+    .th-big4 { color: var(--text2); }
+
+    .comparison-table td {
+      padding: 14px 20px;
+      font-size: 0.875rem;
+      text-align: center;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      color: var(--text2);
+    }
+    .comparison-table td:first-child { text-align: left; color: var(--text); font-weight: 500; }
+    .comparison-table tr:last-child td { border-bottom: none; }
+    .comparison-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+    .check { color: #22c55e; font-size: 1rem; }
+    .partial { color: #f97316; font-size: 1rem; }
+    .cross { color: #ef4444; font-size: 1rem; }
+
+    .td-hedge { background: rgba(0,212,170,0.03); }
+
+    /* ===========================
+       SIMULADOR CTA
+    =========================== */
+    #simulador {
+      padding: 100px 0;
+    }
+
+    .cta-box {
+      background: linear-gradient(135deg, rgba(0,212,170,0.08) 0%, rgba(59,130,246,0.08) 100%);
+      border: 1px solid rgba(0,212,170,0.2);
+      border-radius: 24px;
+      padding: 72px 48px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cta-box::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(0,212,170,0.1) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .cta-box h2 {
+      font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 16px;
+    }
+
+    .cta-box p {
+      font-size: 1.05rem;
+      color: var(--text2);
+      max-width: 520px;
+      margin: 0 auto 36px;
+      line-height: 1.7;
+    }
+
+    .cta-trust {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      margin-top: 24px;
+      flex-wrap: wrap;
+    }
+
+    .trust-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: var(--text2);
+    }
+
+    .trust-check {
+      color: var(--cyan);
+      font-size: 0.9rem;
+    }
+
+    /* ===========================
+       CONTACTO
+    =========================== */
+    #contacto {
+      padding: 100px 0 60px;
+    }
+
+    .contact-inner {
+      display: grid;
+      grid-template-columns: 1fr 1.5fr;
+      gap: 64px;
+      align-items: start;
+    }
+
+    .contact-info h2 {
+      font-size: clamp(1.6rem, 3vw, 2.2rem);
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 16px;
+      line-height: 1.25;
+    }
+
+    .contact-info p {
+      color: var(--text2);
+      line-height: 1.7;
+      margin-bottom: 32px;
+      font-size: 0.95rem;
+    }
+
+    .contact-items {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .contact-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--text2);
+      font-size: 0.9rem;
+    }
+
+    .contact-item-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: rgba(0,212,170,0.08);
+      border: 1px solid rgba(0,212,170,0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      flex-shrink: 0;
+    }
+
+    .form-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 36px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text2);
+      margin-bottom: 8px;
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      color: var(--text);
+      transition: border-color 0.2s, box-shadow 0.2s;
+      outline: none;
+    }
+
+    .form-group input::placeholder,
+    .form-group textarea::placeholder {
+      color: var(--text3);
+    }
+
+    .form-group input:focus,
+    .form-group textarea:focus {
+      border-color: rgba(0,212,170,0.4);
+      box-shadow: 0 0 0 3px rgba(0,212,170,0.08);
+    }
+
+    .form-group textarea {
+      resize: vertical;
+      min-height: 100px;
+    }
+
+    .form-submit {
+      width: 100%;
+      justify-content: center;
+      margin-top: 8px;
+    }
+
+    /* ===========================
+       FOOTER
+    =========================== */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 48px 0 32px;
+      background: rgba(10,14,26,0.8);
+    }
+
+    .footer-inner {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 48px;
+      margin-bottom: 48px;
+    }
+
+    .footer-brand p {
+      font-size: 0.875rem;
+      color: var(--text2);
+      line-height: 1.7;
+      margin-top: 12px;
+      max-width: 280px;
+    }
+
+    .footer-col h4 {
+      font-family: var(--font-body);
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 16px;
+    }
+
+    .footer-links {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .footer-links a {
+      color: var(--text2);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: var(--cyan); }
+
+    .social-links {
+      display: flex;
+      gap: 12px;
+    }
+
+    .social-link {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text2);
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: var(--transition);
+    }
+    .social-link:hover {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      background: rgba(0,212,170,0.08);
+    }
+
+    .footer-bottom {
+      border-top: 1px solid var(--border);
+      padding-top: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .footer-copy {
+      font-size: 0.8rem;
+      color: var(--text3);
+    }
+
+    .footer-legal {
+      display: flex;
+      gap: 20px;
+    }
+
+    .footer-legal a {
+      font-size: 0.8rem;
+      color: var(--text3);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .footer-legal a:hover { color: var(--text2); }
+
+    .disclaimer {
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.04);
+      border-radius: 8px;
+      font-size: 0.72rem;
+      color: var(--text3);
+      line-height: 1.6;
+    }
+
+    /* ===========================
+       RESPONSIVE
+    =========================== */
+    @media (max-width: 1024px) {
+      .hero-inner { grid-template-columns: 1fr; gap: 48px; }
+      .fx-card { max-width: 480px; }
+      .solution-inner { grid-template-columns: 1fr; gap: 48px; }
+      .contact-inner { grid-template-columns: 1fr; gap: 40px; }
+      .footer-inner { grid-template-columns: 1fr 1fr; gap: 32px; }
+    }
+
+    @media (max-width: 768px) {
+      .nav-links, .nav-cta { display: none; }
+      .hamburger { display: flex; }
+
+      .hero-title { font-size: 2.1rem; }
+
+      .cards-grid { grid-template-columns: 1fr; }
+      .diff-cards { grid-template-columns: 1fr; }
+
+      .form-row { grid-template-columns: 1fr; }
+
+      .footer-inner { grid-template-columns: 1fr; gap: 28px; }
+      .footer-bottom { flex-direction: column; align-items: flex-start; }
+
+      .cta-box { padding: 48px 24px; }
+
+      .hero-buttons { flex-direction: column; }
+      .hero-buttons .btn { justify-content: center; }
+
+      .comparison-table { min-width: 480px; }
+    }
+
+    @media (max-width: 480px) {
+      .container { padding: 0 16px; }
+      .hero-title { font-size: 1.85rem; }
+      .section-heading h2 { font-size: 1.7rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="blob-left" aria-hidden="true"></div>
+
+  <!-- ====== NAV ====== -->
+  <nav id="nav" aria-label="Navegación principal">
+    <div class="container nav-inner">
+      <a href="#inicio" class="nav-logo" aria-label="HedgePoint MX">
+        <span>HedgePoint</span><span>&nbsp;MX</span>
+      </a>
+
+      <ul class="nav-links" role="list">
+        <li><a href="#problema">El Problema</a></li>
+        <li><a href="#solucion">Solución</a></li>
+        <li><a href="#diferenciadores">¿Por qué nosotros?</a></li>
+        <li><a href="#contacto">Contacto</a></li>
+      </ul>
+
+      <div class="nav-cta">
+        <a href="#contacto" class="btn btn-primary">Agenda tu diagnóstico</a>
+      </div>
+
+      <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="mobile-menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Mobile Menu -->
+  <div class="mobile-menu" id="mobile-menu" role="dialog" aria-label="Menú de navegación">
+    <a href="#problema" class="mobile-link">El Problema</a>
+    <a href="#solucion" class="mobile-link">Solución</a>
+    <a href="#diferenciadores" class="mobile-link">¿Por qué nosotros?</a>
+    <a href="#contacto" class="mobile-link">Contacto</a>
+    <a href="#contacto" class="btn btn-primary">Agenda tu diagnóstico</a>
+  </div>
+
+  <!-- ====== HERO ====== -->
+  <section id="inicio" aria-labelledby="hero-title">
+    <div class="container">
+      <div class="hero-inner">
+        <!-- Left -->
+        <div>
+          <div class="hero-badge fade-up">
+            <span class="pulse-dot" aria-hidden="true"></span>
+            Consultoría potenciada por IA
+          </div>
+
+          <h1 id="hero-title" class="hero-title fade-up delay-1">
+            Protege tu<br>
+            <span class="gradient-text">rentabilidad</span><br>
+            del tipo de cambio
+          </h1>
+
+          <p class="hero-subtitle fade-up delay-2">
+            Asesoramos a PyMEs importadoras y exportadoras para cubrir su riesgo cambiario USD/MXN con estrategias personalizadas. Tecnología de IA que trabaja 24/7 para proteger tu margen.
+          </p>
+
+          <div class="hero-buttons fade-up delay-3">
+            <a href="#contacto" class="btn btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+              Diagnóstico gratuito
+            </a>
+            <a href="#solucion" class="btn btn-outline">Cómo funciona</a>
+          </div>
+        </div>
+
+        <!-- Right: FX Card -->
+        <div class="fade-up delay-2">
+          <div class="fx-card" role="region" aria-label="Monitor de tipo de cambio">
+            <div class="fx-header">
+              <span class="fx-pair">USD / MXN</span>
+              <span class="fx-live">
+                <span class="live-dot" aria-hidden="true"></span>
+                EN VIVO
+              </span>
+            </div>
+
+            <div class="fx-rate" aria-live="polite" id="fx-rate">17.42</div>
+            <div class="fx-change">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+              +0.38 (+2.23%) hoy
+            </div>
+
+            <!-- Mini SVG chart -->
+            <svg class="mini-chart" viewBox="0 0 300 60" preserveAspectRatio="none" aria-label="Gráfica de precio USD/MXN últimos 7 días">
+              <defs>
+                <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#00d4aa" stop-opacity="0.3"/>
+                  <stop offset="100%" stop-color="#00d4aa" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <path d="M0,52 L42,50 L85,48 L128,44 L171,38 L214,34 L257,25 L300,12" fill="none" stroke="#00d4aa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M0,52 L42,50 L85,48 L128,44 L171,38 L214,34 L257,25 L300,12 L300,60 L0,60 Z" fill="url(#chartGrad)"/>
+              <!-- Trigger line -->
+              <line x1="0" y1="32" x2="300" y2="32" stroke="#f97316" stroke-width="1" stroke-dasharray="6,4" opacity="0.6"/>
+              <text x="4" y="28" fill="#f97316" font-size="7" font-family="JetBrains Mono, monospace" opacity="0.8">Trigger $17.30</text>
+            </svg>
+
+            <div class="fx-alert" role="alert">
+              <div class="fx-alert-label">⚡ Alerta de cobertura activa</div>
+              <div class="fx-alert-text">
+                USD/MXN cruzó tu trigger de <strong>$17.30</strong> — Recomendamos ejecutar cobertura en las próximas 48 hrs.
+              </div>
+            </div>
+
+            <div class="fx-footer">
+              <div class="fx-stat">
+                <div class="fx-stat-label">Exposición mensual</div>
+                <div class="fx-stat-value">$450K USD</div>
+              </div>
+              <div class="fx-stat">
+                <div class="fx-stat-label">Cobertura activa</div>
+                <div class="fx-stat-value text-cyan">68%</div>
+              </div>
+              <div class="fx-stat">
+                <div class="fx-stat-label">P&amp;L protegido</div>
+                <div class="fx-stat-value text-green">+$1.2M</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== PROBLEMA ====== -->
+  <section id="problema" aria-labelledby="problema-title">
+    <div class="container">
+      <div class="section-heading">
+        <div class="section-label fade-up">El problema</div>
+        <h2 id="problema-title" class="fade-up delay-1">¿Tu margen desaparece cuando sube el dólar?</h2>
+        <p class="fade-up delay-2">El 98% de las PyMEs mexicanas operan sin ninguna estrategia de cobertura cambiaria. Mientras tanto, el tipo de cambio puede moverse 10-20% en un año.</p>
+      </div>
+
+      <div class="cards-grid">
+        <div class="problem-card fade-up delay-1">
+          <div class="card-icon icon-orange" aria-hidden="true">⚠️</div>
+          <div class="card-stat stat-orange">98.6%</div>
+          <h3>Exposición no gestionada</h3>
+          <p>De las 4.9 millones de PyMEs en México, prácticamente ninguna cuenta con estrategias formales de cobertura cambiaria. Tu competidor también está expuesto — el que cubra primero gana.</p>
+        </div>
+
+        <div class="problem-card fade-up delay-2">
+          <div class="card-icon icon-red" aria-hidden="true">🏦</div>
+          <div class="card-stat stat-red">5–20¢</div>
+          <h3>Opciones inadecuadas</h3>
+          <p>Los bancos cobran spreads opacos de 5 a 20 centavos por dólar en forwards y opciones. En $500K USD/mes, eso son hasta $100K MXN extras que pagas sin saberlo.</p>
+        </div>
+
+        <div class="problem-card fade-up delay-3">
+          <div class="card-icon icon-purple" aria-hidden="true">💸</div>
+          <div class="card-stat stat-purple">$200K+</div>
+          <h3>Falta de asesoría accesible</h3>
+          <p>Las consultoras Big 4 cobran $200,000 MXN o más por proyecto de gestión de riesgos. Un lujo reservado para corporativos, mientras las PyMEs navegan solas.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== SOLUCIÓN ====== -->
+  <section id="solucion" aria-labelledby="solucion-title">
+    <div class="container">
+      <div class="solution-inner">
+        <!-- Steps -->
+        <div>
+          <div class="section-label fade-up">Cómo te protegemos</div>
+          <h2 id="solucion-title" class="fade-up delay-1" style="font-size:clamp(1.8rem,3.5vw,2.6rem);font-weight:700;color:var(--white);margin-bottom:40px;line-height:1.25;">Un proceso claro,<br>resultados medibles</h2>
+
+          <div class="steps-list">
+            <div class="step fade-up delay-1">
+              <div class="step-left">
+                <div class="step-num">01</div>
+                <div class="step-line" aria-hidden="true"></div>
+              </div>
+              <div class="step-content">
+                <span class="step-tag">Diagnóstico</span>
+                <h3>Analizamos tu exposición real</h3>
+                <p>Revisamos tus flujos de pagos y cobros en dólares, calendario de vencimientos y estructura de costos para cuantificar exactamente cuánto riesgo estás tomando hoy.</p>
+              </div>
+            </div>
+
+            <div class="step fade-up delay-2">
+              <div class="step-left">
+                <div class="step-num">02</div>
+                <div class="step-line" aria-hidden="true"></div>
+              </div>
+              <div class="step-content">
+                <span class="step-tag">Estrategia</span>
+                <h3>Diseñamos la cobertura óptima</h3>
+                <p>Forwards, opciones, dolarización natural o renegociación de contratos. Seleccionamos la combinación con mejor relación costo-protección para tu perfil específico.</p>
+              </div>
+            </div>
+
+            <div class="step fade-up delay-3">
+              <div class="step-left">
+                <div class="step-num">03</div>
+                <div class="step-line" aria-hidden="true"></div>
+              </div>
+              <div class="step-content">
+                <span class="step-tag">Ejecución</span>
+                <h3>Mejores precios del mercado</h3>
+                <p>Canalizamos la ejecución con los bancos que ofrecen los spreads más competitivos. Sin conflicto de intereses — nosotros no ganamos por venderte productos.</p>
+              </div>
+            </div>
+
+            <div class="step fade-up delay-4">
+              <div class="step-left">
+                <div class="step-num">04</div>
+                <div class="step-line" aria-hidden="true"></div>
+              </div>
+              <div class="step-content">
+                <span class="step-tag">Monitoreo 24/7</span>
+                <h3>Agentes IA que nunca duermen</h3>
+                <p>Nuestros agentes monitorean el mercado continuamente y te alertan por WhatsApp o email cuando el tipo de cambio cruza tus niveles de acción, con recomendación incluida.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dashboard mock -->
+        <div class="fade-up delay-2">
+          <div class="dashboard-mock" role="region" aria-label="Vista previa del dashboard de monitoreo">
+            <div class="dash-topbar">
+              <div class="dash-dot" style="background:#ef4444" aria-hidden="true"></div>
+              <div class="dash-dot" style="background:#f59e0b" aria-hidden="true"></div>
+              <div class="dash-dot" style="background:#22c55e" aria-hidden="true"></div>
+              <span class="dash-title">HedgePoint Dashboard — Vista en tiempo real</span>
+            </div>
+
+            <div class="dash-body">
+              <div class="dash-stats">
+                <div class="dash-stat">
+                  <div class="dash-stat-label">Exposición total</div>
+                  <div class="dash-stat-val">$1.2M <span style="font-size:0.65rem;color:var(--text3)">USD</span></div>
+                  <div class="dash-stat-change text-orange">▲ sin cubrir: 32%</div>
+                </div>
+                <div class="dash-stat">
+                  <div class="dash-stat-label">Ahorro estimado YTD</div>
+                  <div class="dash-stat-val">$4.8M</div>
+                  <div class="dash-stat-change text-green">▲ +18% vs presupuesto</div>
+                </div>
+                <div class="dash-stat">
+                  <div class="dash-stat-label">Cobertura activa</div>
+                  <div class="dash-stat-val text-cyan">68%</div>
+                  <div class="dash-stat-change text-green">● Dentro de política</div>
+                </div>
+                <div class="dash-stat">
+                  <div class="dash-stat-label">Tipo de cambio budget</div>
+                  <div class="dash-stat-val">$17.00</div>
+                  <div class="dash-stat-change text-red">▲ spot +$0.42</div>
+                </div>
+              </div>
+
+              <div class="dash-chart-area">
+                <div class="dash-chart-header">
+                  <span class="dash-chart-title">USD/MXN vs. Tipo de cambio presupuesto</span>
+                  <div class="dash-badges">
+                    <span class="dash-badge badge-green">Cubierto</span>
+                    <span class="dash-badge badge-orange">Expuesto</span>
+                  </div>
+                </div>
+                <svg viewBox="0 0 400 70" preserveAspectRatio="none" style="width:100%;height:50px;" aria-label="Gráfica de cobertura vs exposición">
+                  <defs>
+                    <linearGradient id="chartGrad2" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#00d4aa" stop-opacity="0.2"/>
+                      <stop offset="100%" stop-color="#00d4aa" stop-opacity="0"/>
+                    </linearGradient>
+                    <linearGradient id="chartGrad3" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#f97316" stop-opacity="0.2"/>
+                      <stop offset="100%" stop-color="#f97316" stop-opacity="0"/>
+                    </linearGradient>
+                  </defs>
+                  <!-- Budget line -->
+                  <line x1="0" y1="42" x2="400" y2="42" stroke="#3b82f6" stroke-width="1" stroke-dasharray="6,3" opacity="0.5"/>
+                  <!-- Spot rate -->
+                  <path d="M0,60 L55,56 L110,52 L165,50 L220,46 L275,40 L330,32 L400,24" fill="none" stroke="#f97316" stroke-width="1.5"/>
+                  <path d="M0,60 L55,56 L110,52 L165,50 L220,46 L275,40 L330,32 L400,24 L400,70 L0,70 Z" fill="url(#chartGrad3)"/>
+                  <!-- Hedged portion -->
+                  <path d="M0,60 L55,58 L110,56 L165,54 L220,52 L275,49 L330,47 L400,43" fill="none" stroke="#00d4aa" stroke-width="1.5"/>
+                  <path d="M0,60 L55,58 L110,56 L165,54 L220,52 L275,49 L330,47 L400,43 L400,70 L0,70 Z" fill="url(#chartGrad2)"/>
+                </svg>
+              </div>
+
+              <div class="dash-alerts" role="log" aria-label="Alertas recientes">
+                <div class="dash-alert-item">
+                  <span class="alert-icon" aria-hidden="true">⚡</span>
+                  <span class="alert-text"><strong>Trigger activado</strong> — USD/MXN cruzó $17.30</span>
+                  <span class="alert-time">hace 2h</span>
+                </div>
+                <div class="dash-alert-item">
+                  <span class="alert-icon" aria-hidden="true">✅</span>
+                  <span class="alert-text"><strong>Forward ejecutado</strong> — $200K a $17.15 Jun 2025</span>
+                  <span class="alert-time">ayer</span>
+                </div>
+                <div class="dash-alert-item">
+                  <span class="alert-icon" aria-hidden="true">📊</span>
+                  <span class="alert-text"><strong>Reporte semanal</strong> — Revisión de estrategia lista</span>
+                  <span class="alert-time">lun</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== DIFERENCIADORES ====== -->
+  <section id="diferenciadores" aria-labelledby="dif-title">
+    <div class="container">
+      <div class="section-heading">
+        <div class="section-label fade-up">¿Por qué HedgePoint?</div>
+        <h2 id="dif-title" class="fade-up delay-1">El doctor financiero que<br>tu empresa necesita</h2>
+        <p class="fade-up delay-2">No somos la farmacia que siempre te vende el mismo medicamento. Diagnosticamos tu riesgo específico y recetamos el tratamiento correcto.</p>
+      </div>
+
+      <div class="diff-cards">
+        <div class="diff-card fade-up delay-1">
+          <div class="diff-icon" aria-hidden="true">⚖️</div>
+          <h3>Independencia total</h3>
+          <p>No vendemos productos financieros propios. Recomendamos lo que es mejor para tu empresa, sin comisiones de los bancos, sin conflictos de interés.</p>
+        </div>
+
+        <div class="diff-card fade-up delay-2">
+          <div class="diff-icon" aria-hidden="true">🤖</div>
+          <h3>IA que trabaja para ti</h3>
+          <p>Agentes de IA monitorean el mercado 24/7, generan reportes automáticos y te avisan antes de que el tipo de cambio dañe tu margen. Sin tiempos de respuesta de 48 horas.</p>
+        </div>
+
+        <div class="diff-card fade-up delay-3">
+          <div class="diff-icon" aria-hidden="true">🔍</div>
+          <h3>Transparencia radical</h3>
+          <p>Sin spreads ocultos, sin letra chica. Fees claros y predecibles. Cada recomendación viene con datos duros, simulaciones históricas y métricas de desempeño.</p>
+        </div>
+      </div>
+
+      <!-- Comparison table -->
+      <div class="fade-up delay-2">
+        <div class="section-label" style="margin-bottom:20px;">Comparativa</div>
+        <div class="comparison-wrap" role="region" aria-label="Tabla comparativa de opciones">
+          <table class="comparison-table">
+            <thead>
+              <tr>
+                <th scope="col">Criterio</th>
+                <th scope="col" class="th-hedge">HedgePoint MX</th>
+                <th scope="col" class="th-banco">Banco</th>
+                <th scope="col" class="th-big4">Consultora Big 4</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Asesoría independiente</td>
+                <td class="td-hedge"><span class="check" aria-label="Sí">✓</span></td>
+                <td><span class="cross" aria-label="No">✗</span></td>
+                <td><span class="check" aria-label="Sí">✓</span></td>
+              </tr>
+              <tr>
+                <td>Monitoreo 24/7 automático</td>
+                <td class="td-hedge"><span class="check" aria-label="Sí">✓</span></td>
+                <td><span class="cross" aria-label="No">✗</span></td>
+                <td><span class="cross" aria-label="No">✗</span></td>
+              </tr>
+              <tr>
+                <td>Alertas en tiempo real</td>
+                <td class="td-hedge"><span class="check" aria-label="Sí">✓</span></td>
+                <td><span class="partial" aria-label="Parcial">~</span></td>
+                <td><span class="cross" aria-label="No">✗</span></td>
+              </tr>
+              <tr>
+                <td>Accesible para PyMEs</td>
+                <td class="td-hedge"><span class="check" aria-label="Sí">✓</span></td>
+                <td><span class="partial" aria-label="Parcial">~</span></td>
+                <td><span class="cross" aria-label="No">✗</span></td>
+              </tr>
+              <tr>
+                <td>Sin conflicto de interés</td>
+                <td class="td-hedge"><span class="check" aria-label="Sí">✓</span></td>
+                <td><span class="cross" aria-label="No">✗</span></td>
+                <td><span class="check" aria-label="Sí">✓</span></td>
+              </tr>
+              <tr>
+                <td>Spreads transparentes</td>
+                <td class="td-hedge"><span class="check" aria-label="Sí">✓</span></td>
+                <td><span class="cross" aria-label="No">✗</span></td>
+                <td><span class="check" aria-label="Sí">✓</span></td>
+              </tr>
+              <tr>
+                <td>Costo mensual estimado</td>
+                <td class="td-hedge" style="color:var(--cyan);font-family:var(--font-mono);font-size:0.85rem;">Desde $8K MXN</td>
+                <td style="font-family:var(--font-mono);font-size:0.85rem;">Spreads opacos</td>
+                <td style="font-family:var(--font-mono);font-size:0.85rem;">$200K+ proyecto</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== SIMULADOR CTA ====== -->
+  <section id="simulador" aria-labelledby="sim-title">
+    <div class="container">
+      <div class="cta-box">
+        <div class="section-label fade-up" style="justify-content:center;">Simulación gratuita</div>
+        <h2 id="sim-title" class="fade-up delay-1">¿Cuánto podrías haber<br>ahorrado?</h2>
+        <p class="fade-up delay-2">
+          Nuestro simulador analiza los últimos 5 años de datos USD/MXN para mostrarte cuánto habrías protegido con una estrategia de cobertura adaptada a tu volumen de operaciones.
+        </p>
+        <div class="fade-up delay-3">
+          <a href="#contacto" class="btn btn-primary" style="padding:16px 36px;font-size:1rem;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+            Solicita tu simulación gratuita
+          </a>
+        </div>
+        <div class="cta-trust fade-up delay-4">
+          <div class="trust-item">
+            <span class="trust-check" aria-hidden="true">✓</span>
+            Sin costo ni compromiso
+          </div>
+          <div class="trust-item">
+            <span class="trust-check" aria-hidden="true">✓</span>
+            Resultados en 48 horas
+          </div>
+          <div class="trust-item">
+            <span class="trust-check" aria-hidden="true">✓</span>
+            100% confidencial
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== CONTACTO ====== -->
+  <section id="contacto" aria-labelledby="contacto-title">
+    <div class="container">
+      <div class="contact-inner">
+        <!-- Left info -->
+        <div>
+          <div class="section-label fade-up">Contacto</div>
+          <h2 id="contacto-title" class="fade-up delay-1">Agenda tu diagnóstico<br>cambiario gratuito</h2>
+          <p class="fade-up delay-2">
+            Una sesión de 45 minutos para entender tu exposición, darte un diagnóstico preliminar y explicarte qué opciones tienes. Sin costo, sin compromiso.
+          </p>
+
+          <div class="contact-items fade-up delay-3">
+            <div class="contact-item">
+              <div class="contact-item-icon" aria-hidden="true">📍</div>
+              Ciudad de México, México
+            </div>
+            <div class="contact-item">
+              <div class="contact-item-icon" aria-hidden="true">✉️</div>
+              contacto@hedgepointmx.com
+            </div>
+            <div class="contact-item">
+              <div class="contact-item-icon" aria-hidden="true">⏱️</div>
+              Respuesta en menos de 24 horas
+            </div>
+          </div>
+        </div>
+
+        <!-- Form -->
+        <div class="form-card fade-up delay-2">
+          <form
+            action="https://formspree.io/f/YOUR_FORM_ID"
+            method="POST"
+            aria-label="Formulario de contacto"
+          >
+            <div class="form-row">
+              <div class="form-group">
+                <label for="nombre">Nombre</label>
+                <input
+                  type="text"
+                  id="nombre"
+                  name="nombre"
+                  placeholder="Tu nombre"
+                  required
+                  autocomplete="given-name"
+                />
+              </div>
+              <div class="form-group">
+                <label for="empresa">Empresa</label>
+                <input
+                  type="text"
+                  id="empresa"
+                  name="empresa"
+                  placeholder="Nombre de tu empresa"
+                  required
+                  autocomplete="organization"
+                />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="email">Correo electrónico</label>
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  placeholder="tu@empresa.com"
+                  required
+                  autocomplete="email"
+                />
+              </div>
+              <div class="form-group">
+                <label for="telefono">Teléfono</label>
+                <input
+                  type="tel"
+                  id="telefono"
+                  name="telefono"
+                  placeholder="+52 55 0000 0000"
+                  autocomplete="tel"
+                />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="volumen">Volumen mensual aprox. en USD</label>
+              <select id="volumen" name="volumen">
+                <option value="" disabled selected>Selecciona un rango</option>
+                <option value="menos-200k">Menos de $200K USD</option>
+                <option value="200k-500k">$200K – $500K USD</option>
+                <option value="500k-1m">$500K – $1M USD</option>
+                <option value="mas-1m">Más de $1M USD</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="mensaje">¿Cuál es tu principal preocupación cambiaria?</label>
+              <textarea
+                id="mensaje"
+                name="mensaje"
+                placeholder="Ej. Tenemos pagos de importación en dólares y el tipo de cambio está afectando nuestros márgenes..."
+              ></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary form-submit">
+              Enviar y agendar diagnóstico
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== FOOTER ====== -->
+  <footer>
+    <div class="container">
+      <div class="footer-inner">
+        <!-- Brand -->
+        <div class="footer-brand">
+          <a href="#inicio" class="nav-logo" style="font-size:1.1rem;" aria-label="HedgePoint MX inicio">
+            <span>HedgePoint</span><span>&nbsp;MX</span>
+          </a>
+          <p>Consultoría de riesgo cambiario para PyMEs mexicanas. Protegemos tu rentabilidad con estrategias personalizadas y tecnología de IA.</p>
+          <div class="social-links" style="margin-top:20px;">
+            <a href="#" class="social-link" aria-label="LinkedIn de HedgePoint MX">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6zM2 9h4v12H2z"/><circle cx="4" cy="4" r="2"/></svg>
+            </a>
+            <a href="#" class="social-link" aria-label="Twitter de HedgePoint MX">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23 3a10.9 10.9 0 01-3.14 1.53 4.48 4.48 0 00-7.86 3v1A10.66 10.66 0 013 4s-4 9 5 13a11.64 11.64 0 01-7 2c9 5 20 0 20-11.5a4.5 4.5 0 00-.08-.83A7.72 7.72 0 0023 3z"/></svg>
+            </a>
+            <a href="#" class="social-link" aria-label="WhatsApp de HedgePoint MX">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.138.565 4.146 1.547 5.885L0 24l6.27-1.516A11.97 11.97 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.844 0-3.573-.493-5.065-1.354l-.363-.214-3.732.902.937-3.626-.236-.373A9.962 9.962 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+            </a>
+          </div>
+        </div>
+
+        <!-- Links col 1 -->
+        <div class="footer-col">
+          <h4>Servicios</h4>
+          <ul class="footer-links">
+            <li><a href="#solucion">Diagnóstico cambiario</a></li>
+            <li><a href="#solucion">Estrategia de cobertura</a></li>
+            <li><a href="#solucion">Ejecución de derivados</a></li>
+            <li><a href="#solucion">Monitoreo 24/7</a></li>
+            <li><a href="#simulador">Simulador de ahorro</a></li>
+          </ul>
+        </div>
+
+        <!-- Links col 2 -->
+        <div class="footer-col">
+          <h4>Empresa</h4>
+          <ul class="footer-links">
+            <li><a href="#">Nosotros</a></li>
+            <li><a href="#">Blog</a></li>
+            <li><a href="#">Casos de éxito</a></li>
+            <li><a href="#contacto">Contacto</a></li>
+          </ul>
+        </div>
+
+        <!-- Links col 3 -->
+        <div class="footer-col">
+          <h4>Recursos</h4>
+          <ul class="footer-links">
+            <li><a href="#">Guía de cobertura para PyMEs</a></li>
+            <li><a href="#">Tipos de derivados cambiarios</a></li>
+            <li><a href="#">Calculadora de exposición</a></li>
+            <li><a href="#">Glosario financiero</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="disclaimer">
+        <strong>Aviso legal:</strong> HedgePoint MX presta servicios de consultoría y asesoría en materia de riesgo cambiario. No somos una casa de bolsa ni intermediario financiero. Las estrategias y recomendaciones son de carácter informativo y no constituyen asesoría de inversión en los términos de la Ley del Mercado de Valores. La ejecución de instrumentos financieros derivados implica riesgos. Consulte a su asesor financiero antes de tomar decisiones.
+      </div>
+
+      <div class="footer-bottom">
+        <p class="footer-copy">© 2025 HedgePoint MX. Todos los derechos reservados.</p>
+        <div class="footer-legal">
+          <a href="#">Privacidad</a>
+          <a href="#">Términos de uso</a>
+          <a href="#">Aviso legal</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ====== JAVASCRIPT ====== -->
+  <script>
+    // ---- Nav scroll behavior ----
+    const nav = document.getElementById('nav');
+    let lastScroll = 0;
+
+    window.addEventListener('scroll', () => {
+      const current = window.scrollY;
+      if (current > 60) {
+        nav.classList.add('scrolled');
+      } else {
+        nav.classList.remove('scrolled');
+      }
+      lastScroll = current;
+    }, { passive: true });
+
+    // ---- Mobile menu ----
+    const hamburger = document.getElementById('hamburger');
+    const mobileMenu = document.getElementById('mobile-menu');
+    const mobileLinks = document.querySelectorAll('.mobile-link, .mobile-menu .btn');
+
+    function toggleMenu(open) {
+      hamburger.classList.toggle('open', open);
+      mobileMenu.classList.toggle('open', open);
+      hamburger.setAttribute('aria-expanded', open);
+      document.body.style.overflow = open ? 'hidden' : '';
+    }
+
+    hamburger.addEventListener('click', () => {
+      const isOpen = mobileMenu.classList.contains('open');
+      toggleMenu(!isOpen);
+    });
+
+    mobileLinks.forEach(link => {
+      link.addEventListener('click', () => toggleMenu(false));
+    });
+
+    // Close on escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && mobileMenu.classList.contains('open')) {
+        toggleMenu(false);
+        hamburger.focus();
+      }
+    });
+
+    // ---- IntersectionObserver for fade-up ----
+    const fadeEls = document.querySelectorAll('.fade-up');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, {
+      threshold: 0.12,
+      rootMargin: '0px 0px -40px 0px'
+    });
+
+    fadeEls.forEach(el => observer.observe(el));
+
+    // ---- Simulated FX ticker ----
+    const fxRateEl = document.getElementById('fx-rate');
+    if (fxRateEl) {
+      let baseRate = 17.42;
+      let direction = 1;
+
+      setInterval(() => {
+        const delta = (Math.random() * 0.04 - 0.02);
+        baseRate = Math.max(16.50, Math.min(19.00, baseRate + delta));
+        fxRateEl.textContent = baseRate.toFixed(2);
+      }, 3500);
+    }
+
+    // ---- Form submission feedback ----
+    const form = document.querySelector('form');
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        const btn = form.querySelector('button[type="submit"]');
+        btn.textContent = 'Enviando...';
+        btn.disabled = true;
+      });
+    }
+
+    // ---- Smooth scroll for anchor links (polyfill support) ----
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', (e) => {
+        const target = document.querySelector(anchor.getAttribute('href'));
+        if (target) {
+          e.preventDefault();
+          const offset = 80;
+          const top = target.getBoundingClientRect().top + window.scrollY - offset;
+          window.scrollTo({ top, behavior: 'smooth' });
+        }
+      });
+    });
+  </script>
+</body>
+</html>
