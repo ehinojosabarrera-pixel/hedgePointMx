@@ -57,6 +57,10 @@ class Trigger:
     threshold: float
     active: bool = True
     description: str = ""
+    # Canales de notificación para este trigger (None = hereda configuración global)
+    canales: list[str] | None = field(default=None)
+    # Números WhatsApp adicionales específicos para este trigger (None = hereda global)
+    whatsapp_numbers: list[str] | None = field(default=None)
 
     # Campo calculado al activarse — no forma parte de la config YAML
     _fired_value: float | None = field(default=None, repr=False, compare=False)
@@ -73,6 +77,12 @@ class Trigger:
                 f"Opciones válidas: {[t.value for t in TriggerType]}"
             )
 
+        raw_canales = data.get("canales")
+        canales = [str(c).strip() for c in raw_canales] if raw_canales else None
+
+        raw_wa = data.get("whatsapp")
+        whatsapp_numbers = [str(n).strip() for n in raw_wa] if raw_wa else None
+
         return cls(
             name=data["name"],
             trigger_type=t_type,
@@ -80,10 +90,12 @@ class Trigger:
             threshold=float(data["threshold"]),
             active=bool(data.get("active", True)),
             description=data.get("description", ""),
+            canales=canales,
+            whatsapp_numbers=whatsapp_numbers,
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "name": self.name,
             "type": self.trigger_type.value,
             "symbol": self.symbol,
@@ -91,6 +103,11 @@ class Trigger:
             "active": self.active,
             "description": self.description,
         }
+        if self.canales is not None:
+            d["canales"] = self.canales
+        if self.whatsapp_numbers is not None:
+            d["whatsapp"] = self.whatsapp_numbers
+        return d
 
 
 @dataclass

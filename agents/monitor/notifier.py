@@ -1,18 +1,23 @@
 """
-Notificador de alertas por email — HedgePoint MX.
+Notificador de alertas por email y WhatsApp — HedgePoint MX.
 
 Envía un email HTML con la tabla de triggers activados usando la API HTTP de Resend.
 Antes de enviar, genera un análisis de contexto de mercado con Claude (Sonnet).
+Adicionalmente, envía un mensaje corto por WhatsApp (sin el análisis completo).
 
 Credenciales requeridas en .env:
-    RESEND_API_KEY     — API key de Resend (re_xxxxxxxxxxxxxxxx)
-    ANTHROPIC_API_KEY  — API key de Anthropic para el análisis con Claude
+    RESEND_API_KEY          — API key de Resend (re_xxxxxxxxxxxxxxxx)
+    ANTHROPIC_API_KEY       — API key de Anthropic para el análisis con Claude
+    TWILIO_ACCOUNT_SID      — SID de cuenta Twilio
+    TWILIO_AUTH_TOKEN       — Auth token de Twilio
+    TWILIO_WHATSAPP_FROM    — Número origen WhatsApp (whatsapp:+14155238886)
 
 Remitente por defecto: onboarding@resend.dev (cuenta Resend sin dominio propio)
 
 Uso:
-    from agents.monitor.notifier import send_alert_email
-    send_alert_email(fired_triggers, recipients=["a@ejemplo.com", "b@ejemplo.com"])
+    from agents.monitor.notifier import send_alert_email, send_alert_whatsapp
+    send_alert_email(fired_triggers, recipients=["a@ejemplo.com"])
+    send_alert_whatsapp(fired_triggers, whatsapp_numbers=["+5219931701758"])
 """
 
 import logging
@@ -23,6 +28,7 @@ import anthropic
 import requests
 
 from agents.monitor.triggers import FiredTrigger
+from agents.monitor.whatsapp_notifier import send_whatsapp_alert
 
 logger = logging.getLogger("hedgepoint.notifier")
 
@@ -277,3 +283,61 @@ def send_alert_email(
         logger.error("[EMAIL] Error de red: %s", exc)
 
     return False
+
+
+# ---------------------------------------------------------------------------
+# Canal WhatsApp — mensaje corto
+# ---------------------------------------------------------------------------
+
+def _build_whatsapp_message(fired: list[FiredTrigger], timestamp: str) -> str:
+    """
+    Construye un mensaje de texto compacto para WhatsApp.
+
+    Incluye: encabezado, lista de triggers (nombre, símbolo, valor vs umbral)
+    y el mensaje de alerta de cada trigger. Sin el análisis Claude
+    (demasiado largo para WhatsApp).
+    """
+    lines = [
+        f"⚠️ *HedgePoint MX — {len(fired)} alerta(s)*",
+        f"_{timestamp}_",
+        "",
+    ]
+
+    for ft in fired:
+        t = ft.trigger
+        lines.append(f"• *{t.name}* ({t.symbol})")
+        lines.append(f"  Valor: {ft.observed_value:.4f}  |  Umbral: {t.threshold:.4f}")
+        lines.append(f"  {ft.message}")
+        lines.append("")
+
+    lines.append("Revisa tu email para el análisis completo de mercado.")
+    return "\n".join(lines)
+
+
+def send_alert_whatsapp(
+    fired: list[FiredTrigger],
+    whatsapp_numbers: list[str],
+) -> None:
+    """
+    Envía un mensaje corto de WhatsApp a los números indicados.
+
+    Parameters
+    ----------
+    fired:
+        Lista de FiredTrigger a reportar. Si está vacía no se envía nada.
+    whatsapp_numbers:
+        Números destino en formato E.164. Si está vacía no se envía nada.
+    """
+    if not fired:
+        logger.debug("[WHATSAPP] Lista de triggers vacía — sin envío.")
+        return
+
+    if not whatsapp_numbers:
+        logger.warning("[WHATSAPP] Sin números WhatsApp configurados — sin envío.")
+        return
+
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    message = _build_whatsapp_message(fired, timestamp)
+
+    for telefono in whatsapp_numbers:
+        send_whatsapp_alert(telefono, message)

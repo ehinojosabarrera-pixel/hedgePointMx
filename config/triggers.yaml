@@ -10,17 +10,37 @@
 #                       anterior supera el umbral (en valor absoluto)
 #
 # Campos obligatorios: name, type, symbol, threshold
-# Campos opcionales:   active (default: true), description
+# Campos opcionales:   active (default: true), description,
+#                      canales (sobrescribe global, default: ["email"]),
+#                      whatsapp (lista de números extra para este trigger)
 #
 # symbol: par FX en mayúsculas (USDMXN) o símbolo commodity (WTI, NATURAL_GAS)
 # =============================================================================
 
-# Destinatarios de alertas por email (agents/monitor/notifier.py)
-# Agrega tantas direcciones como sea necesario.
+# ---------------------------------------------------------------------------
+# Configuración de notificaciones globales
+# ---------------------------------------------------------------------------
+#
+# recipients     — lista de emails que reciben alertas
+# whatsapp       — lista de números WhatsApp destino (formato E.164)
+# canales        — canales activos: ["email"], ["whatsapp"] o ["email", "whatsapp"]
+#                  Default si se omite: ["email"]
+#
+# Los campos canales y whatsapp también pueden definirse por trigger individual
+# para sobrescribir la configuración global.
+# ---------------------------------------------------------------------------
+
 recipients:
   - ehinojosabarrera@gmail.com
   # - trader@hedgepointmx.com
-  # - riesgo@hedgepointmx.com
+
+whatsapp:
+  - "+5219931701758"
+  # - "+5215598765432"
+
+canales:
+  - email
+  - whatsapp
 
 triggers:
 

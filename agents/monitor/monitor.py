@@ -31,7 +31,7 @@ from dotenv import load_dotenv
 from core.database import init_db, insert_fx_rate
 from core.data.market_data import fetch_usdmxn_banxico
 from agents.monitor.triggers import build_market_data_from_db, evaluate_triggers
-from agents.monitor.notifier import send_alert_email
+from agents.monitor.notifier import send_alert_email, send_alert_whatsapp
 
 load_dotenv()
 init_db()
@@ -51,16 +51,26 @@ logging.basicConfig(
 logger = logging.getLogger("hedgepoint.monitor")
 
 
-def _load_recipients() -> list[str]:
-    """Lee la lista de destinatarios desde config/triggers.yaml → key 'recipients'."""
+def _load_notification_config() -> dict:
+    """
+    Lee la configuración de notificaciones desde config/triggers.yaml.
+
+    Returns dict con claves:
+        recipients  — list[str]  emails destino
+        whatsapp    — list[str]  números WhatsApp destino
+        canales     — list[str]  canales activos (default: ["email"])
+    """
     try:
         with _CONFIG_PATH.open("r", encoding="utf-8") as fh:
             raw = yaml.safe_load(fh) or {}
-        recipients = raw.get("recipients") or []
-        return [str(r).strip() for r in recipients if str(r).strip()]
+        recipients = [str(r).strip() for r in (raw.get("recipients") or []) if str(r).strip()]
+        whatsapp = [str(n).strip() for n in (raw.get("whatsapp") or []) if str(n).strip()]
+        raw_canales = raw.get("canales") or []
+        canales = [str(c).strip() for c in raw_canales] if raw_canales else ["email"]
+        return {"recipients": recipients, "whatsapp": whatsapp, "canales": canales}
     except Exception as exc:
-        logger.warning("[CONFIG] No se pudieron cargar recipients: %s", exc)
-        return []
+        logger.warning("[CONFIG] No se pudo cargar configuración de notificaciones: %s", exc)
+        return {"recipients": [], "whatsapp": [], "canales": ["email"]}
 
 
 # ---------------------------------------------------------------------------
@@ -129,8 +139,28 @@ def _check_triggers() -> None:
     for result in fired:
         logger.warning("  *** %s", result.message)
 
-    recipients = _load_recipients()
-    send_alert_email(fired, recipients=recipients)
+    notif = _load_notification_config()
+
+    # Determinar canales efectivos por trigger:
+    # si el trigger define canales propios los usa; si no, hereda el global.
+    def _canales(ft) -> list[str]:
+        return ft.trigger.canales if ft.trigger.canales is not None else notif["canales"]
+
+    fired_email = [ft for ft in fired if "email" in _canales(ft)]
+    fired_whatsapp = [ft for ft in fired if "whatsapp" in _canales(ft)]
+
+    if fired_email:
+        send_alert_email(fired_email, recipients=notif["recipients"])
+
+    if fired_whatsapp:
+        # Combinar números globales con números específicos de cada trigger
+        wa_numbers: list[str] = list(notif["whatsapp"])
+        for ft in fired_whatsapp:
+            if ft.trigger.whatsapp_numbers:
+                for num in ft.trigger.whatsapp_numbers:
+                    if num not in wa_numbers:
+                        wa_numbers.append(num)
+        send_alert_whatsapp(fired_whatsapp, whatsapp_numbers=wa_numbers)
 
 
 def run_cycle() -> None:

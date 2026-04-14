@@ -1,0 +1,1 @@
+python scripts/test_whatsapp.py --telefono "+529931701758" --mensaje "Prueba HedgePoint MX"
