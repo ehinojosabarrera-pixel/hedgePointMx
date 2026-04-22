@@ -2182,7 +2182,7 @@ def _metricas_desde_forward(
     costo_vs_spot = resultado.costo_total_spot_mxn - costo_total
     pct_margen = (costo_vs_spot / margen_total * 100) if margen_total > 0 else 0.0
     vol_mensual = float(np.std(resultados_mes)) if resultados_mes else 0.0
-    ratio = (costo_total / peor_mes_evitado) if peor_mes_evitado > 0 else float("inf")
+    ratio = (abs(costo_vs_spot) / peor_mes_evitado) if peor_mes_evitado > 0 else float("inf")
 
     return MetricasEstrategia(
         instrumento="forward",
@@ -2239,7 +2239,7 @@ def _metricas_desde_opciones(
     costo_vs_spot = resultado.costo_total_spot_mxn - costo_total
     pct_margen = (costo_vs_spot / margen_total * 100) if margen_total > 0 else 0.0
     vol_mensual = float(np.std(resultados_mes)) if resultados_mes else 0.0
-    ratio = (costo_total / peor_mes_evitado) if peor_mes_evitado > 0 else float("inf")
+    ratio = (abs(costo_vs_spot) / peor_mes_evitado) if peor_mes_evitado > 0 else float("inf")
 
     return MetricasEstrategia(
         instrumento="opcion",
@@ -2292,7 +2292,7 @@ def _metricas_desde_collar(
     costo_vs_spot = resultado.costo_total_spot_mxn - costo_total
     pct_margen = (costo_vs_spot / margen_total * 100) if margen_total > 0 else 0.0
     vol_mensual = float(np.std(resultados_mes)) if resultados_mes else 0.0
-    ratio = (costo_total / peor_mes_evitado) if peor_mes_evitado > 0 else float("inf")
+    ratio = (abs(costo_vs_spot) / peor_mes_evitado) if peor_mes_evitado > 0 else float("inf")
 
     return MetricasEstrategia(
         instrumento="collar",
@@ -2395,7 +2395,7 @@ def _evaluar_mix_combinado(
     costo_vs_spot = costo_spot_total - costo_total
     pct_margen = (costo_vs_spot / margen_total * 100) if margen_total > 0 else 0.0
     vol_mensual = float(np.std(resultados_mes)) if resultados_mes else 0.0
-    ratio = (costo_total / peor_mes_evitado) if peor_mes_evitado > 0 else float("inf")
+    ratio = (abs(costo_vs_spot) / peor_mes_evitado) if peor_mes_evitado > 0 else float("inf")
 
     return costo_total, costo_vs_spot, pct_margen, peor_mes_evitado, meses_con_valor, vol_mensual, ratio
 
