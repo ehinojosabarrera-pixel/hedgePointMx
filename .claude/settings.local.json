@@ -6,7 +6,10 @@
       "Bash(pip show:*)",
       "Bash(venv/Scripts/pip install:*)",
       "Bash(timeout 25 venv/Scripts/python scripts/scheduler.py)",
-      "Bash(sqlite3 /c/Users/ehino/OneDrive/Documentos/HedgePointMx/data/hedgepoint.db \".schema\")"
+      "Bash(sqlite3 /c/Users/ehino/OneDrive/Documentos/HedgePointMx/data/hedgepoint.db \".schema\")",
+      "Bash(venv/Scripts/python.exe -c \"import ast; ast.parse\\(open\\(''scripts/demo_mode.py''\\).read\\(\\)\\); print\\(''Sintaxis OK''\\)\")",
+      "Bash(python -c ':*)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('scripts/run_simulation.py'\\).read\\(\\)\\); print\\('run_simulation.py OK'\\)\")"
     ]
   }
 }

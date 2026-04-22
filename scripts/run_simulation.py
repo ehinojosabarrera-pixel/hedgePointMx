@@ -185,7 +185,7 @@ def _solicitar_parametros_interactivo() -> dict:
     }
 
 
-def ejecutar_simulacion(
+def ejecutar_simulacion_forward(
     volumen: float,
     margen: float,
     frecuencia: str,
@@ -195,9 +195,10 @@ def ejecutar_simulacion(
     markup: float = 0.04,
     fee: float = 15_000.0,
     con_plazos: bool = False,
+    cobertura: float = 100.0,
 ) -> None:
     """
-    Ejecuta la simulación completa y genera el PDF.
+    Ejecuta la simulación de forwards y genera el PDF.
 
     Args:
         volumen: Volumen mensual en USD.
@@ -209,6 +210,7 @@ def ejecutar_simulacion(
         markup: Markup HedgePoint en MXN/USD (default: 0.04).
         fee: Fee mensual HedgePoint en MXN (default: 15,000).
         con_plazos: Si True, ejecuta simulación multi-plazo (30/60/90d).
+        cobertura: Porcentaje del volumen mensual cubierto con forward (default: 100).
     """
     from agents.simulator.savings_simulator import (
         ParametrosCliente, SimuladorAhorro, simular_multi_plazo,
@@ -225,6 +227,7 @@ def ejecutar_simulacion(
     print(f"    Markup HedgePoint:  ${markup:.2f} MXN/USD")
     print(f"    Fee mensual HP:     ${fee:,.0f} MXN")
     print(f"    Comparativa plazos: {'Sí (30/60/90d)' if con_plazos else 'No (solo 30d)'}")
+    print(f"    Nivel de cobertura: {cobertura:.0f}%")
     print(f"    Archivo de salida:  {output}")
     print("-" * 60)
 
@@ -236,6 +239,7 @@ def ejecutar_simulacion(
         spread_banco=spread,
         markup_hedgepoint=markup,
         fee_mensual=fee,
+        cobertura_pct=cobertura,
     )
 
     # 2. Ejecutar simulación principal (plazo 30d)
@@ -277,19 +281,318 @@ def ejecutar_simulacion(
     print("\n¡Simulación completada!")
 
 
+def ejecutar_simulacion_opciones(
+    volumen: float,
+    margen: float,
+    frecuencia: str,
+    output: str,
+    years: int = 5,
+    markup: float = 0.04,
+    fee: float = 15_000.0,
+    markup_banco_pct: float = 0.15,
+) -> None:
+    """
+    Ejecuta la simulación de cobertura con opciones put y genera el PDF.
+
+    Args:
+        volumen: Volumen mensual en USD.
+        margen: Margen de utilidad como decimal (0.12 = 12%).
+        frecuencia: Frecuencia de compra ('mensual', 'quincenal', 'semanal').
+        output: Ruta del PDF de salida.
+        years: Años de histórico a simular.
+        markup: Markup HedgePoint en MXN/USD (default: 0.04).
+        fee: Fee mensual HedgePoint en MXN (default: 15,000).
+        markup_banco_pct: Markup del banco sobre la prima teórica GK (default: 15%).
+    """
+    from agents.simulator.savings_simulator import (
+        ParametrosCliente, simulate_options_strategy,
+    )
+    from agents.simulator.pdf_generator import generar_pdf_opciones
+
+    print("\n" + "-" * 60)
+    print("  Configuración de la simulación (Opciones Put):")
+    print(f"    Volumen mensual:      USD ${volumen:,.0f}")
+    print(f"    Margen de utilidad:   {margen*100:.1f}%")
+    print(f"    Frecuencia:           {frecuencia}")
+    print(f"    Período:              {years} años")
+    print(f"    Markup HedgePoint:    ${markup:.2f} MXN/USD")
+    print(f"    Fee mensual HP:       ${fee:,.0f} MXN")
+    print(f"    Markup banco (prima): {markup_banco_pct*100:.0f}%")
+    print(f"    Instrumento:          Put ATM Garman-Kohlhagen")
+    print(f"    Archivo de salida:    {output}")
+    print("-" * 60)
+
+    params = ParametrosCliente(
+        volumen_mensual_usd=volumen,
+        margen_utilidad=margen,
+        frecuencia=frecuencia,  # type: ignore[arg-type]
+        spread_banco=0.0,       # no aplica para opciones (el banco cobra vía prima)
+        markup_hedgepoint=markup,
+        fee_mensual=fee,
+    )
+
+    print("\nEjecutando simulación de opciones put (backtesting)...")
+    try:
+        resultado = simulate_options_strategy(
+            parametros=params,
+            years=years,
+            markup_banco_pct=markup_banco_pct,
+        )
+    except ValueError as e:
+        print(f"\n[ERROR] {e}")
+        sys.exit(1)
+
+    print("\n" + resultado.resumen())
+
+    print("\nGenerando PDF profesional (opciones)...")
+    try:
+        ruta_pdf = generar_pdf_opciones(resultado, output)
+        print(f"\n  PDF generado exitosamente:")
+        print(f"  → {ruta_pdf.resolve()}")
+    except ImportError as e:
+        print(f"\n[ERROR] Dependencia faltante para generar el PDF: {e}")
+        print("Instala con: pip install reportlab matplotlib")
+        sys.exit(1)
+    except Exception as e:
+        logger.exception("Error al generar el PDF de opciones")
+        print(f"\n[ERROR] No se pudo generar el PDF: {e}")
+        sys.exit(1)
+
+    print("\n¡Simulación de opciones completada!")
+
+
+def ejecutar_simulacion_collar(
+    volumen: float,
+    margen: float,
+    frecuencia: str,
+    output: str,
+    years: int = 5,
+    markup: float = 0.04,
+    fee: float = 15_000.0,
+    markup_banco_pct: float = 0.15,
+    call_otm_pct: float = 0.03,
+) -> None:
+    """
+    Ejecuta la simulación de cobertura con collar (put ATM + call OTM vendido) y genera el PDF.
+
+    Args:
+        volumen: Volumen mensual en USD.
+        margen: Margen de utilidad como decimal (0.12 = 12%).
+        frecuencia: Frecuencia de compra ('mensual', 'quincenal', 'semanal').
+        output: Ruta del PDF de salida.
+        years: Años de histórico a simular.
+        markup: Markup HedgePoint en MXN/USD (default: 0.04).
+        fee: Fee mensual HedgePoint en MXN (default: 15,000).
+        markup_banco_pct: Markup del banco sobre las primas teóricas GK (default: 15%).
+        call_otm_pct: Distancia OTM del call vendido como fracción (default: 3%).
+    """
+    from agents.simulator.savings_simulator import (
+        ParametrosCliente, simulate_collar_strategy,
+    )
+    from agents.simulator.pdf_generator import generar_pdf_collar
+
+    print("\n" + "-" * 60)
+    print("  Configuración de la simulación (Collar):")
+    print(f"    Volumen mensual:      USD ${volumen:,.0f}")
+    print(f"    Margen de utilidad:   {margen*100:.1f}%")
+    print(f"    Frecuencia:           {frecuencia}")
+    print(f"    Período:              {years} años")
+    print(f"    Markup HedgePoint:    ${markup:.2f} MXN/USD")
+    print(f"    Fee mensual HP:       ${fee:,.0f} MXN")
+    print(f"    Markup banco (prima): {markup_banco_pct*100:.0f}%")
+    print(f"    Call OTM strike:      +{call_otm_pct*100:.1f}% sobre spot")
+    print(f"    Instrumento:          Put ATM + Call OTM vendido (Garman-Kohlhagen)")
+    print(f"    Archivo de salida:    {output}")
+    print("-" * 60)
+
+    params = ParametrosCliente(
+        volumen_mensual_usd=volumen,
+        margen_utilidad=margen,
+        frecuencia=frecuencia,  # type: ignore[arg-type]
+        spread_banco=0.0,       # no aplica para opciones (el banco cobra vía prima)
+        markup_hedgepoint=markup,
+        fee_mensual=fee,
+    )
+
+    print("\nEjecutando simulación de collar (backtesting)...")
+    try:
+        resultado = simulate_collar_strategy(
+            parametros=params,
+            years=years,
+            markup_banco_pct=markup_banco_pct,
+            call_otm_pct=call_otm_pct,
+        )
+    except ValueError as e:
+        print(f"\n[ERROR] {e}")
+        sys.exit(1)
+
+    print("\n" + resultado.resumen())
+
+    print("\nGenerando PDF profesional (collar)...")
+    try:
+        ruta_pdf = generar_pdf_collar(resultado, output)
+        print(f"\n  PDF generado exitosamente:")
+        print(f"  → {ruta_pdf.resolve()}")
+    except ImportError as e:
+        print(f"\n[ERROR] Dependencia faltante para generar el PDF: {e}")
+        print("Instala con: pip install reportlab matplotlib")
+        sys.exit(1)
+    except Exception as e:
+        logger.exception("Error al generar el PDF de collar")
+        print(f"\n[ERROR] No se pudo generar el PDF: {e}")
+        sys.exit(1)
+
+    print("\n¡Simulación de collar completada!")
+
+
+def ejecutar_simulacion_comparativa(
+    volumen: float,
+    margen: float,
+    frecuencia: str,
+    output: str,
+    years: int = 5,
+    spread: float = 0.05,
+    markup: float = 0.04,
+    fee: float = 15_000.0,
+    markup_banco_pct: float = 0.15,
+    call_otm_pct: float = 0.03,
+) -> None:
+    """
+    Ejecuta las 3 estrategias base, calcula la mezcla óptima y genera el PDF comparativo.
+
+    Args:
+        volumen: Volumen mensual en USD.
+        margen: Margen de utilidad como decimal (0.12 = 12%).
+        frecuencia: Frecuencia de compra ('mensual', 'quincenal', 'semanal').
+        output: Ruta del PDF de salida.
+        years: Años de histórico a simular.
+        spread: Spread del banco en MXN/USD (aplica al forward).
+        markup: Markup HedgePoint en MXN/USD.
+        fee: Fee mensual HedgePoint en MXN.
+        markup_banco_pct: Markup del banco sobre primas teóricas GK (opciones y collar).
+        call_otm_pct: Distancia OTM del put vendido en el collar.
+    """
+    from agents.simulator.savings_simulator import (
+        ParametrosCliente, SimuladorAhorro, simulate_options_strategy,
+        simulate_collar_strategy, find_optimal_mix,
+    )
+    from agents.simulator.pdf_generator import generar_pdf
+
+    print("\n" + "-" * 60)
+    print("  Configuración de la simulación (Comparativa de Estrategias):")
+    print(f"    Volumen mensual:      USD ${volumen:,.0f}")
+    print(f"    Margen de utilidad:   {margen*100:.1f}%")
+    print(f"    Frecuencia:           {frecuencia}")
+    print(f"    Período:              {years} años")
+    print(f"    Spread banco:         ${spread:.2f} MXN/USD")
+    print(f"    Markup HedgePoint:    ${markup:.2f} MXN/USD")
+    print(f"    Fee mensual HP:       ${fee:,.0f} MXN")
+    print(f"    Markup banco (prima): {markup_banco_pct*100:.0f}%")
+    print(f"    Put OTM strike:       -{call_otm_pct*100:.1f}% bajo spot (collar)")
+    print(f"    Estrategias:          Forward, Opciones Put ATM, Collar")
+    print(f"    Archivo de salida:    {output}")
+    print("-" * 60)
+
+    params = ParametrosCliente(
+        volumen_mensual_usd=volumen,
+        margen_utilidad=margen,
+        frecuencia=frecuencia,  # type: ignore[arg-type]
+        spread_banco=spread,
+        markup_hedgepoint=markup,
+        fee_mensual=fee,
+        cobertura_pct=100.0,
+    )
+
+    # 1. Simulación forward base (para el PDF principal y resumen)
+    print("\nEjecutando simulación forward (base)...")
+    try:
+        sim_fwd = SimuladorAhorro(params, years=years)
+        resultado_fwd = sim_fwd.ejecutar()
+    except ValueError as e:
+        print(f"\n[ERROR] {e}")
+        sys.exit(1)
+    print("  Forward: OK  —", resultado_fwd.resumen().splitlines()[0])
+
+    # 2. Simulación opciones
+    print("\nEjecutando simulación de opciones put...")
+    try:
+        resultado_op = simulate_options_strategy(
+            parametros=params,
+            years=years,
+            markup_banco_pct=markup_banco_pct,
+        )
+    except ValueError as e:
+        print(f"\n[ERROR] {e}")
+        sys.exit(1)
+    print("  Opciones: OK  —", resultado_op.resumen().splitlines()[0])
+
+    # 3. Simulación collar
+    print("\nEjecutando simulación de collar...")
+    try:
+        resultado_col = simulate_collar_strategy(
+            parametros=params,
+            years=years,
+            markup_banco_pct=markup_banco_pct,
+            call_otm_pct=call_otm_pct,
+        )
+    except ValueError as e:
+        print(f"\n[ERROR] {e}")
+        sys.exit(1)
+    print("  Collar: OK  —", resultado_col.resumen().splitlines()[0])
+
+    # 4. Calcular mezcla óptima
+    print("\nCalculando mezcla óptima (evaluando combinaciones en 25%)...")
+    try:
+        comparativa = find_optimal_mix(
+            parametros=params,
+            years=years,
+            markup_banco_pct=markup_banco_pct,
+            call_otm_pct=call_otm_pct,
+        )
+    except Exception as e:
+        logger.exception("Error en find_optimal_mix")
+        print(f"\n[ERROR] No se pudo calcular la mezcla óptima: {e}")
+        sys.exit(1)
+
+    mix = comparativa.mix_optimo
+    print(f"\n  Mix óptimo: {mix.instrumento_principal}")
+    print(f"    Forward: {mix.pct_forward:.0f}%  |  Opciones: {mix.pct_opcion:.0f}%  |  Collar: {mix.pct_collar:.0f}%  |  Spot: {mix.pct_sin_cubrir:.0f}%")
+    print(f"    Costo total:        ${mix.costo_total_mxn:,.0f} MXN")
+    print(f"    Ahorro vs spot:     ${mix.costo_vs_spot_mxn:,.0f} MXN")
+    print(f"    Ratio costo/prot.:  {mix.ratio_costo_proteccion:,.0f}")
+
+    # 5. Generar PDF con sección comparativa integrada
+    print("\nGenerando PDF comparativo...")
+    try:
+        ruta_pdf = generar_pdf(resultado_fwd, output, comparativa=comparativa)
+        print(f"\n  PDF generado exitosamente:")
+        print(f"  → {ruta_pdf.resolve()}")
+    except ImportError as e:
+        print(f"\n[ERROR] Dependencia faltante para generar el PDF: {e}")
+        print("Instala con: pip install reportlab matplotlib")
+        sys.exit(1)
+    except Exception as e:
+        logger.exception("Error al generar el PDF comparativo")
+        print(f"\n[ERROR] No se pudo generar el PDF: {e}")
+        sys.exit(1)
+
+    print("\n¡Simulación comparativa completada!")
+
+
 def main() -> None:
     """Punto de entrada principal del script."""
     _verificar_dependencias()
 
     parser = argparse.ArgumentParser(
-        description="Simulador de ahorro por cobertura forward — HedgePoint MX",
+        description="Simulador de cobertura cambiaria — HedgePoint MX",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Ejemplos:
   python scripts/run_simulation.py --demo
-  python scripts/run_simulation.py --volumen 300000 --margen 12 --frecuencia mensual --plazos
+  python scripts/run_simulation.py --volumen 300000 --margen 12 --estrategia forward --plazos
+  python scripts/run_simulation.py --volumen 300000 --margen 12 --estrategia opcion
+  python scripts/run_simulation.py --volumen 300000 --margen 12 --estrategia opcion --markup-banco 20
   python scripts/run_simulation.py --volumen 500000 --margen 8 --spread 0.05 --markup 0.04 --fee 15000 --plazos
-  python scripts/run_simulation.py --volumen 300000 --margen 12 --spread 0 --markup 0 --fee 0
         """,
     )
     parser.add_argument(
@@ -352,6 +655,45 @@ Ejemplos:
         help="Activar comparativa multi-plazo (30, 60 y 90 días)",
     )
     parser.add_argument(
+        "--cobertura",
+        type=float,
+        default=100.0,
+        help="Porcentaje del volumen mensual cubierto con forward (default: 100)",
+    )
+    parser.add_argument(
+        "--estrategia",
+        type=str,
+        choices=["forward", "opcion", "collar", "comparativa", "optima"],
+        default="forward",
+        help=(
+            "Estrategia de cobertura a simular (default: forward). "
+            "'forward': forwards a 30d. "
+            "'opcion': puts ATM Garman-Kohlhagen. "
+            "'collar': call ATM comprado + put OTM vendido. "
+            "'comparativa'/'optima': compara las 3 estrategias y encuentra la mezcla óptima."
+        ),
+    )
+    parser.add_argument(
+        "--markup-banco",
+        type=float,
+        default=15.0,
+        dest="markup_banco",
+        help=(
+            "Markup del banco sobre la prima teórica de la opción, en %% "
+            "(aplica con --estrategia opcion y collar, default: 15)"
+        ),
+    )
+    parser.add_argument(
+        "--call-otm",
+        type=float,
+        default=3.0,
+        dest="call_otm",
+        help=(
+            "Distancia OTM del call vendido en el collar, en %% sobre spot "
+            "(solo aplica con --estrategia collar, default: 3)"
+        ),
+    )
+    parser.add_argument(
         "--skip-download",
         action="store_true",
         help="Omitir verificación/descarga de datos históricos",
@@ -361,9 +703,15 @@ Ejemplos:
 
     _ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
+    # Comparativa y optima comparten el mismo sufijo de archivo
+    _sufijo = "comparativa" if args.estrategia in ("comparativa", "optima") else args.estrategia
+
     # Modo demo: importador mediano de referencia, --plazos activado por defecto
     if args.demo:
-        print("\n[DEMO] Usando datos de ejemplo: importador mediano ($300k USD/mes, 12% margen)")
+        print(
+            f"\n[DEMO] Usando datos de ejemplo: importador mediano "
+            f"($300k USD/mes, 12% margen, estrategia: {_sufijo})"
+        )
         volumen = 300_000.0
         margen = 0.12
         frecuencia = "mensual"
@@ -371,7 +719,8 @@ Ejemplos:
         markup = args.markup
         fee = args.fee
         con_plazos = True         # siempre activo en modo demo
-        output = args.output or f"output/reporte_demo_importador_{_ts}.pdf"
+        cobertura = args.cobertura
+        output = args.output or f"output/reporte_demo_{_sufijo}_{_ts}.pdf"
     elif args.volumen is not None and args.margen is not None:
         volumen = args.volumen
         margen = args.margen / 100.0 if args.margen > 1 else args.margen
@@ -380,7 +729,8 @@ Ejemplos:
         markup = args.markup
         fee = args.fee
         con_plazos = args.plazos
-        output = args.output or f"output/reporte_simulacion_{_ts}.pdf"
+        cobertura = args.cobertura
+        output = args.output or f"output/reporte_{_sufijo}_{_ts}.pdf"
     else:
         # Modo interactivo
         params_i = _solicitar_parametros_interactivo()
@@ -391,26 +741,70 @@ Ejemplos:
         markup = args.markup
         fee = args.fee
         con_plazos = args.plazos
-        # El nombre interactivo también lleva timestamp
+        cobertura = args.cobertura
+        # El nombre interactivo también lleva timestamp y estrategia
         base = params_i["output"].replace(".pdf", "")
-        output = args.output or f"{base}_{_ts}.pdf"
+        output = args.output or f"{base}_{_sufijo}_{_ts}.pdf"
 
     # Verificar / descargar histórico
     if not args.skip_download:
         _verificar_o_descargar_historico(years=args.years)
 
-    # Ejecutar simulación y generar PDF
-    ejecutar_simulacion(
-        volumen=volumen,
-        margen=margen,
-        frecuencia=frecuencia,
-        output=output,
-        years=args.years,
-        spread=spread,
-        markup=markup,
-        fee=fee,
-        con_plazos=con_plazos,
-    )
+    # Dispatcher por estrategia
+    estrategia = args.estrategia
+
+    if estrategia == "forward":
+        ejecutar_simulacion_forward(
+            volumen=volumen,
+            margen=margen,
+            frecuencia=frecuencia,
+            output=output,
+            years=args.years,
+            spread=spread,
+            markup=markup,
+            fee=fee,
+            con_plazos=con_plazos,
+            cobertura=cobertura,
+        )
+
+    elif estrategia == "opcion":
+        ejecutar_simulacion_opciones(
+            volumen=volumen,
+            margen=margen,
+            frecuencia=frecuencia,
+            output=output,
+            years=args.years,
+            markup=markup,
+            fee=fee,
+            markup_banco_pct=args.markup_banco / 100.0,
+        )
+
+    elif estrategia == "collar":
+        ejecutar_simulacion_collar(
+            volumen=volumen,
+            margen=margen,
+            frecuencia=frecuencia,
+            output=output,
+            years=args.years,
+            markup=markup,
+            fee=fee,
+            markup_banco_pct=args.markup_banco / 100.0,
+            call_otm_pct=args.call_otm / 100.0,
+        )
+
+    elif estrategia in ("comparativa", "optima"):
+        ejecutar_simulacion_comparativa(
+            volumen=volumen,
+            margen=margen,
+            frecuencia=frecuencia,
+            output=output,
+            years=args.years,
+            spread=spread,
+            markup=markup,
+            fee=fee,
+            markup_banco_pct=args.markup_banco / 100.0,
+            call_otm_pct=args.call_otm / 100.0,
+        )
 
 
 if __name__ == "__main__":
