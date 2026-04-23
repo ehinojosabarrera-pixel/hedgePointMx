@@ -576,65 +576,135 @@ def _pagina_diagnostico(insights: str, st: dict) -> list:
 def _pagina_cta(exposure: dict, prospect: dict, st: dict) -> list:
     story = []
 
-    story.append(Paragraph("Costo de No Cubrirse", st["seccion"]))
+    story.append(Paragraph("Estrategias de Protección Disponibles", st["seccion"]))
     story.append(HRFlowable(width="100%", thickness=0.5, color=AZUL_CLARO))
     story.append(Spacer(1, 0.3 * cm))
 
-    costo_fw  = exposure["costo_estimado_forward_mensual"]
-    costo_anual = costo_fw * 12
-    p10       = exposure["perdida_potencial_10pct"]
-    p15       = exposure["perdida_potencial_15pct"]
-    exp_mxn   = exposure["exposicion_anual_mxn"]
+    volumen  = prospect.get("volumen_usd_mensual", 0)
+    p10      = exposure["perdida_potencial_10pct"]
+    exp_mxn  = exposure["exposicion_anual_mxn"]
+    tc       = exposure.get("tipo_cambio_usado", 17.5)
 
-    # Cost comparison table
-    story.append(Paragraph("Cobertura vs. exposición sin protección", st["sub_seccion"]))
+    # Estimated monthly costs per strategy (generic market spreads)
+    costo_forward = volumen * 0.03
+    costo_opciones = volumen * 0.06
+    costo_collar   = volumen * 0.02
 
-    rows_cmp = [
-        ["", "Sin cobertura", "Con cobertura forward"],
-        ["Pérdida potencial (10% mov.)",
-         f"${p10:,.0f} MXN",
-         "Fija antes del movimiento"],
-        ["Pérdida potencial (15% mov.)",
-         f"${p15:,.0f} MXN",
-         "Fija antes del movimiento"],
-        ["Costo mensual estimado",
-         "Variable (impredecible)",
-         f"${costo_fw:,.0f} MXN"],
-        ["Costo anual estimado",
-         "Variable (impredecible)",
-         f"${costo_anual:,.0f} MXN"],
-        ["Certeza en presupuesto",
-         "No",
-         "Sí"],
+    # --- Strategy comparison table ---
+    st_nota = ParagraphStyle(
+        "_nota", fontName="Helvetica", fontSize=7,
+        textColor=GRIS, leading=10,
+    )
+    st_td_left = ParagraphStyle(
+        "_tdl", fontName="Helvetica", fontSize=8,
+        textColor=colors.HexColor("#374151"), alignment=TA_LEFT, leading=11,
+    )
+    st_td_c = ParagraphStyle(
+        "_tdc", fontName="Helvetica", fontSize=8,
+        textColor=colors.HexColor("#374151"), alignment=TA_CENTER, leading=11,
+    )
+    st_th = ParagraphStyle(
+        "_thh", fontName="Helvetica-Bold", fontSize=8,
+        textColor=BLANCO, alignment=TA_CENTER,
+    )
+
+    W = PAGE_W - 3.6 * cm
+    col_w = [W * p for p in (0.14, 0.26, 0.18, 0.22, 0.20)]
+
+    header = [Paragraph(h, st_th) for h in [
+        "Estrategia", "Qué hace", "Costo est./mes",
+        "Protección", "Flexibilidad",
+    ]]
+
+    def _td(txt, left=False):
+        return Paragraph(txt, st_td_left if left else st_td_c)
+
+    rows = [
+        header,
+        [
+            _td("Forward"),
+            _td("Fija su tipo de cambio", left=True),
+            _td(f"${costo_forward:,.0f}"),
+            _td("Total — elimina riesgo", left=True),
+            _td("Sin flexibilidad: no se beneficia si el peso se aprecia", left=True),
+        ],
+        [
+            _td("Opciones\n(Put)"),
+            _td("Pone un piso de protección", left=True),
+            _td(f"${costo_opciones:,.0f}"),
+            _td("Parcial — protege caídas", left=True),
+            _td("Conserva el beneficio si el peso se aprecia", left=True),
+        ],
+        [
+            _td("Collar"),
+            _td("Piso + techo", left=True),
+            _td(f"${costo_collar:,.0f}"),
+            _td("Parcial — protege caídas", left=True),
+            _td("Menor costo, pero limita ganancia si el peso se aprecia mucho", left=True),
+        ],
     ]
 
-    col_w = [(PAGE_W - 3.6 * cm) * p for p in (0.40, 0.30, 0.30)]
-    t = Table(rows_cmp, colWidths=col_w)
+    t = Table(rows, colWidths=col_w, repeatRows=1)
     cmds = _ts_base(1)
     cmds += [
-        ("ALIGN",    (0, 1), (0, -1), "LEFT"),
-        ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
-        ("TEXTCOLOR", (1, 1), (1, -1), ROJO),
-        ("TEXTCOLOR", (2, 1), (2, -1), VERDE),
+        ("ALIGN",         (0, 1), (0, -1), "CENTER"),
+        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1),
+         [colors.white, AZUL_CLARO, VERDE_CLARO]),
+        ("FONTNAME",      (0, 1), (-1, -1), "Helvetica"),
     ]
     t.setStyle(TableStyle(cmds))
     story.append(t)
-    story.append(Spacer(1, 0.6 * cm))
+    story.append(Spacer(1, 0.15 * cm))
+    story.append(Paragraph(
+        "* Costos estimados con spreads promedio de mercado. "
+        "Los costos reales dependen de las condiciones del momento de contratación.",
+        st_nota,
+    ))
+    story.append(Spacer(1, 0.5 * cm))
 
-    # Value proposition message
+    # --- Cost-of-no-hedging comparison box ---
+    inner_st = ParagraphStyle(
+        "_box", fontName="Helvetica", fontSize=9,
+        textColor=colors.HexColor("#1a4731"), leading=14,
+    )
+    box_lines = (
+        f"<b>Sin cobertura:</b> pérdida potencial de "
+        f"<b>${p10:,.0f} MXN</b> ante un movimiento del 10%.<br/>"
+        f"<b>Con cobertura desde:</b> <b>${costo_collar:,.0f} MXN/mes</b> (collar) "
+        f"hasta <b>${costo_opciones:,.0f} MXN/mes</b> (opciones)."
+    )
+    box_cell = Table(
+        [[Paragraph(box_lines, inner_st)]],
+        colWidths=[W],
+    )
+    box_cell.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, -1), VERDE_CLARO),
+        ("BOX",           (0, 0), (-1, -1), 0.8, VERDE),
+        ("TOPPADDING",    (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 14),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 14),
+    ]))
+    story.append(box_cell)
+    story.append(Spacer(1, 0.55 * cm))
+
+    # --- CTA ---
     story.append(KeepTogether([
-        Paragraph(
-            f"Por <b>${costo_fw:,.0f} MXN/mes</b> protege "
-            f"<b>${exp_mxn/1_000_000:.1f}M MXN</b> de exposición cambiaria.",
-            st["cta"],
-        ),
-        Spacer(1, 0.4 * cm),
         HRFlowable(width="80%", thickness=0.5, color=AZUL_CLARO, hAlign="CENTER"),
         Spacer(1, 0.4 * cm),
-        Paragraph("¿Listo para proteger su negocio?", st["cta"]),
-        Spacer(1, 0.2 * cm),
         Paragraph(
-            f"Contáctenos hoy para diseñar su estrategia de cobertura personalizada.<br/>"
+            "¿Cuál estrategia le conviene? Cada empresa es diferente.",
+            st["cta"],
+        ),
+        Spacer(1, 0.15 * cm),
+        Paragraph(
+            "Agende una reunión de análisis personalizado donde evaluamos su perfil "
+            "de riesgo con datos históricos reales.",
+            st["cta_sub"],
+        ),
+        Spacer(1, 0.3 * cm),
+        Paragraph(
             f"<b>Email:</b> {CONTACTO_EMAIL} &nbsp;|&nbsp; "
             f"<b>WhatsApp:</b> {CONTACTO_WA} &nbsp;|&nbsp; "
             f"<b>Web:</b> {CONTACTO_WEB}",
