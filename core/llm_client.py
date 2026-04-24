@@ -19,8 +19,10 @@ Usage:
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+import re
 from typing import Optional
 
 import anthropic
@@ -45,6 +47,13 @@ _FALLBACK_MARKET = (
 
 _DEFAULT_MODEL = "claude-sonnet-4-20250514"
 _TIMEOUT_SECONDS = 30
+
+_FALLBACK_PARSE = None  # parse_scenario returns None on failure
+
+_FALLBACK_SCENARIO = (
+    "Análisis de escenario no disponible temporalmente. "
+    "Las métricas cuantitativas del escenario han sido calculadas correctamente."
+)
 
 
 class HedgePointLLM:
@@ -256,3 +265,171 @@ INSTRUCCIONES:
         except Exception as exc:
             logger.error("Error al llamar a Claude API (market context): %s", exc)
             return _FALLBACK_MARKET
+
+    # ------------------------------------------------------------------
+    # Scenario parsing
+    # ------------------------------------------------------------------
+
+    def parse_scenario(self, texto_usuario: str, spot_actual: float) -> dict | None:
+        """Interpreta texto en lenguaje natural y extrae parámetros del escenario.
+
+        Envía el texto a Claude con un system prompt estricto que fuerza una
+        respuesta JSON.  Si el JSON falla, intenta un regex fallback que extrae
+        el primer número decimal del texto y lo trata como spot_fijo.
+
+        Parameters
+        ----------
+        texto_usuario : str
+            Texto libre del usuario, ej: "¿Qué pasa si el dólar sube a $22?"
+        spot_actual : float
+            Spot USD/MXN actual para dar contexto al modelo.
+
+        Returns
+        -------
+        dict | None
+            Dict con keys: ``tipo`` ("spot_fijo"|"cambio_porcentual"|"historico"),
+            ``valor`` (float), ``plazo_meses`` (int), ``nombre_evento`` (str|None).
+            ``None`` si no se puede parsear.
+        """
+        system_prompt = (
+            "Eres un parser de escenarios financieros. El usuario describe un escenario "
+            "hipotético sobre el tipo de cambio USD/MXN. Extrae los parámetros.\n\n"
+            f"Spot actual: ${spot_actual:.4f}\n\n"
+            "Responde ÚNICAMENTE con un JSON válido, sin markdown, sin backticks, "
+            "sin explicación. El JSON debe tener estas keys exactas:\n"
+            '- "tipo": "spot_fijo" si menciona un precio específico, '
+            '"cambio_porcentual" si menciona un porcentaje, '
+            '"historico" si menciona un evento histórico '
+            "(crisis 2008, Trump 2016, COVID 2020, super peso 2023, aranceles Trump 2025)\n"
+            '- "valor": el número extraído (precio en pesos si spot_fijo, '
+            "porcentaje sin signo si cambio_porcentual, 0 si historico)\n"
+            '- "plazo_meses": plazo mencionado en meses (default 3 si no se menciona)\n'
+            '- "nombre_evento": null excepto si tipo es "historico", entonces uno de: '
+            '"crisis_2008", "trump_2016", "covid_2020", "super_peso_2023", '
+            '"aranceles_trump_2025"\n\n'
+            "Ejemplos:\n"
+            '"¿Qué pasa si el dólar sube a $22?" → '
+            '{"tipo":"spot_fijo","valor":22.0,"plazo_meses":3,"nombre_evento":null}\n'
+            '"Si sube 10%" → '
+            '{"tipo":"cambio_porcentual","valor":10.0,"plazo_meses":3,"nombre_evento":null}\n'
+            '"¿Cómo me habría afectado el COVID?" → '
+            '{"tipo":"historico","valor":0,"plazo_meses":3,"nombre_evento":"covid_2020"}\n'
+            '"Si baja a 16 pesos en 6 meses" → '
+            '{"tipo":"spot_fijo","valor":16.0,"plazo_meses":6,"nombre_evento":null}'
+        )
+
+        try:
+            message = self._client.messages.create(
+                model=self._model,
+                max_tokens=150,
+                timeout=_TIMEOUT_SECONDS,
+                system=system_prompt,
+                messages=[{"role": "user", "content": texto_usuario}],
+            )
+            raw = message.content[0].text.strip()
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            # Regex fallback: extrae el primer número decimal del texto original
+            logger.warning(
+                "parse_scenario: JSON inválido en respuesta de Claude. "
+                "Intentando regex fallback sobre el texto del usuario."
+            )
+            match = re.search(r"\b(\d{1,3}(?:\.\d{1,4})?)\b", texto_usuario)
+            if match:
+                return {
+                    "tipo": "spot_fijo",
+                    "valor": float(match.group(1)),
+                    "plazo_meses": 3,
+                    "nombre_evento": None,
+                }
+            logger.error(
+                "parse_scenario: regex fallback no encontró número en: %r",
+                texto_usuario,
+            )
+            return _FALLBACK_PARSE
+        except Exception as exc:
+            logger.error("Error al llamar a Claude API (parse_scenario): %s", exc)
+            return _FALLBACK_PARSE
+
+    # ------------------------------------------------------------------
+    # Scenario analysis
+    # ------------------------------------------------------------------
+
+    def analyze_scenario(self, scenario_result: dict) -> str:
+        """Genera análisis narrativo de un resultado de escenario.
+
+        Convierte el dict de ScenarioResult a texto estructurado, lo anonimiza
+        y lo envía a Claude para obtener una narrativa ejecutiva en español.
+
+        Parameters
+        ----------
+        scenario_result : dict
+            ScenarioResult convertido a dict (con ``dataclasses.asdict()``
+            o construido manualmente).
+
+        Returns
+        -------
+        str
+            Análisis narrativo en español (≤ 200 palabras), o fallback si
+            la API no está disponible.
+        """
+        system_prompt = (
+            "Eres un asesor financiero de HedgePoint MX especializado en cobertura "
+            "cambiaria para PyMEs mexicanas. Analiza este escenario hipotético y explica "
+            "al cliente:\n"
+            "1. Qué significa este movimiento para su negocio (en pesos y centavos, "
+            "no en abstracto)\n"
+            "2. Cuál de las 3 estrategias (forward, opciones, collar) le conviene más "
+            "y por qué\n"
+            "3. Una recomendación concreta de acción\n"
+            "Tono: directo, sin jerga innecesaria. Máximo 200 palabras. En español."
+        )
+
+        # Build a readable summary of the key figures from scenario_result
+        sin_cob = scenario_result.get("impacto_sin_cobertura", {})
+        fwd     = scenario_result.get("impacto_forward", {})
+        opc     = scenario_result.get("impacto_opciones", {})
+        collar  = scenario_result.get("impacto_collar", {})
+
+        escenario_texto = (
+            f"ESCENARIO HIPOTÉTICO USD/MXN\n"
+            f"Spot actual:      ${scenario_result.get('spot_actual', 0):.4f}\n"
+            f"Spot hipotético:  ${scenario_result.get('spot_hipotetico', 0):.4f}\n"
+            f"Movimiento:       {scenario_result.get('movimiento_pct', 0):+.2f}% "
+            f"({scenario_result.get('direccion', '')})\n"
+            f"Mejor estrategia sugerida: {scenario_result.get('mejor_estrategia', '')}\n"
+            f"\nIMPACTO SIN COBERTURA\n"
+            f"Exposición total: ${sin_cob.get('exposicion_total_mxn', 0):,.0f} MXN\n"
+            f"Costo adicional vs. hoy: ${sin_cob.get('diferencia_vs_actual_mxn', 0):,.0f} MXN\n"
+            f"Impacto sobre margen: {sin_cob.get('impacto_margen_pct', 0):.1f}%\n"
+            f"\nFORWARD\n"
+            f"Tasa forward: ${fwd.get('tasa_forward', 0):.4f}\n"
+            f"Costo total: ${fwd.get('costo_cobertura_mxn', 0):,.0f} MXN\n"
+            f"Ahorro vs. sin cobertura: ${fwd.get('ahorro_vs_sin_cobertura_mxn', 0):,.0f} MXN\n"
+            f"\nOPCIONES (put ATM)\n"
+            f"Prima por USD: ${opc.get('prima_put_mxn_usd', 0):.4f} MXN\n"
+            f"Prima total: ${opc.get('prima_total_mxn', 0):,.0f} MXN\n"
+            f"Ahorro vs. sin cobertura: ${opc.get('ahorro_vs_sin_cobertura_mxn', 0):,.0f} MXN\n"
+            f"\nCOLLAR\n"
+            f"Prima neta por USD: ${collar.get('prima_neta_mxn_usd', 0):.4f} MXN\n"
+            f"Costo neto total: ${collar.get('costo_neto_mxn', 0):,.0f} MXN\n"
+            f"Ahorro vs. sin cobertura: ${collar.get('ahorro_vs_sin_cobertura_mxn', 0):,.0f} MXN\n"
+            f"Protección desde: ${collar.get('proteccion_desde', 0):.4f} | "
+            f"Límite beneficio: ${collar.get('limite_beneficio', 0):.4f}\n"
+            f"\nRESUMEN AUTOMÁTICO: {scenario_result.get('resumen', '')}"
+        )
+
+        clean_texto = self.anonymizer.anonymize(escenario_texto)
+
+        try:
+            message = self._client.messages.create(
+                model=self._model,
+                max_tokens=400,
+                timeout=_TIMEOUT_SECONDS,
+                system=system_prompt,
+                messages=[{"role": "user", "content": clean_texto}],
+            )
+            return message.content[0].text
+        except Exception as exc:
+            logger.error("Error al llamar a Claude API (analyze_scenario): %s", exc)
+            return _FALLBACK_SCENARIO
