@@ -5,6 +5,7 @@ Tablas:
 - fx_rates: tipos de cambio (bid/ask) por par de divisas
 - commodities: precios de materias primas
 - prospects: prospectos del agente de onboarding (campos sensibles pre-encriptados)
+- hedges: coberturas cambiarias activas (forward, put, call, collar)
 
 Funciones de inserción y consulta con sqlite3 estándar.
 """
@@ -84,6 +85,37 @@ def init_db(db_path: Path = DB_PATH) -> None:
 
             CREATE INDEX IF NOT EXISTS idx_prospects_status
                 ON prospects (status);
+
+            CREATE TABLE IF NOT EXISTS hedges (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                prospect_id         INTEGER NOT NULL REFERENCES prospects(id),
+                tipo                TEXT    NOT NULL CHECK(tipo IN ('forward', 'put', 'call', 'collar')),
+                monto_usd           REAL    NOT NULL,
+                strike              REAL    NOT NULL,
+                strike_call         REAL,
+                spot_entrada        REAL    NOT NULL,
+                prima_pagada_mxn    REAL    NOT NULL DEFAULT 0,
+                tasa_forward        REAL,
+                fecha_inicio        TEXT    NOT NULL,
+                fecha_vencimiento   TEXT    NOT NULL,
+                fecha_liquidacion   TEXT,
+                estado              TEXT    NOT NULL DEFAULT 'activa'
+                                        CHECK(estado IN ('activa', 'vencida', 'liquidada', 'cancelada')),
+                spot_liquidacion    REAL,
+                pnl_mxn             REAL,
+                notas               TEXT,
+                created_at          TEXT    NOT NULL DEFAULT (datetime('now')),
+                updated_at          TEXT    NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_hedges_prospect_id
+                ON hedges (prospect_id);
+
+            CREATE INDEX IF NOT EXISTS idx_hedges_estado
+                ON hedges (estado);
+
+            CREATE INDEX IF NOT EXISTS idx_hedges_fecha_vencimiento
+                ON hedges (fecha_vencimiento);
         """)
 
 
@@ -331,6 +363,183 @@ def update_prospect(
     with get_connection(db_path) as conn:
         cur = conn.execute(sql, allowed)
         return cur.rowcount > 0
+
+
+# ---------------------------------------------------------------------------
+# Hedges
+# ---------------------------------------------------------------------------
+
+_HEDGE_REQUIRED = frozenset({
+    "prospect_id", "tipo", "monto_usd", "strike", "spot_entrada",
+    "fecha_inicio", "fecha_vencimiento",
+})
+
+_HEDGE_COLUMNS = frozenset({
+    "prospect_id", "tipo", "monto_usd", "strike", "strike_call",
+    "spot_entrada", "prima_pagada_mxn", "tasa_forward",
+    "fecha_inicio", "fecha_vencimiento", "fecha_liquidacion",
+    "estado", "spot_liquidacion", "pnl_mxn", "notas",
+})
+
+_TIPOS_VALIDOS = {"forward", "put", "call", "collar"}
+
+
+def insert_hedge(data: dict, db_path: Path = DB_PATH) -> int:
+    """Inserta una cobertura activa y retorna el rowid.
+
+    Args:
+        data: Diccionario con los campos de la cobertura.  Las claves no
+              reconocidas se ignoran silenciosamente.
+        db_path: Ruta a la base de datos.
+
+    Returns:
+        rowid del registro insertado.
+
+    Raises:
+        ValueError: Si faltan campos requeridos, el tipo es inválido, o el
+                    tipo 'collar' no incluye strike_call.
+    """
+    missing = _HEDGE_REQUIRED - data.keys()
+    if missing:
+        raise ValueError(f"Campos requeridos faltantes: {missing}")
+
+    tipo = data["tipo"]
+    if tipo not in _TIPOS_VALIDOS:
+        raise ValueError(f"tipo '{tipo}' no válido. Opciones: {_TIPOS_VALIDOS}")
+
+    if tipo == "collar" and not data.get("strike_call"):
+        raise ValueError("El tipo 'collar' requiere el campo 'strike_call'.")
+
+    allowed = {k: v for k, v in data.items() if k in _HEDGE_COLUMNS}
+    cols = ", ".join(allowed.keys())
+    placeholders = ", ".join(f":{k}" for k in allowed.keys())
+    sql = f"INSERT INTO hedges ({cols}) VALUES ({placeholders})"
+    with get_connection(db_path) as conn:
+        cur = conn.execute(sql, allowed)
+        return cur.lastrowid
+
+
+def get_hedge(hedge_id: int, db_path: Path = DB_PATH) -> Optional[dict]:
+    """Retorna una cobertura por ID, o None si no existe.
+
+    Args:
+        hedge_id: ID de la cobertura.
+        db_path: Ruta a la base de datos.
+
+    Returns:
+        Diccionario con todos los campos, o None.
+    """
+    sql = "SELECT * FROM hedges WHERE id = ?"
+    with get_connection(db_path) as conn:
+        row = conn.execute(sql, (hedge_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def get_client_hedges(
+    prospect_id: int,
+    estado: Optional[str] = None,
+    db_path: Path = DB_PATH,
+) -> list[dict]:
+    """Retorna las coberturas de un cliente, opcionalmente filtradas por estado.
+
+    Args:
+        prospect_id: ID del prospecto/cliente.
+        estado: Si se indica, filtra por este estado
+                (``'activa'``, ``'vencida'``, ``'liquidada'``, ``'cancelada'``).
+        db_path: Ruta a la base de datos.
+
+    Returns:
+        Lista de diccionarios ordenados por fecha_vencimiento ascendente.
+    """
+    if estado is not None:
+        sql = """
+            SELECT * FROM hedges
+            WHERE prospect_id = ? AND estado = ?
+            ORDER BY fecha_vencimiento ASC
+        """
+        params: tuple = (prospect_id, estado)
+    else:
+        sql = """
+            SELECT * FROM hedges
+            WHERE prospect_id = ?
+            ORDER BY fecha_vencimiento ASC
+        """
+        params = (prospect_id,)
+    with get_connection(db_path) as conn:
+        rows = conn.execute(sql, params).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_active_hedges(db_path: Path = DB_PATH) -> list[dict]:
+    """Retorna todas las coberturas con estado 'activa'.
+
+    Args:
+        db_path: Ruta a la base de datos.
+
+    Returns:
+        Lista de diccionarios ordenados por fecha_vencimiento ascendente.
+    """
+    sql = """
+        SELECT * FROM hedges
+        WHERE estado = 'activa'
+        ORDER BY fecha_vencimiento ASC
+    """
+    with get_connection(db_path) as conn:
+        rows = conn.execute(sql).fetchall()
+    return [dict(r) for r in rows]
+
+
+def update_hedge_status(
+    hedge_id: int,
+    estado: str,
+    spot_liquidacion: Optional[float] = None,
+    pnl_mxn: Optional[float] = None,
+    db_path: Path = DB_PATH,
+) -> bool:
+    """Cambia el estado de una cobertura y opcionalmente registra liquidación.
+
+    Args:
+        hedge_id: ID de la cobertura.
+        estado: Nuevo estado (``'activa'``, ``'vencida'``, ``'liquidada'``, ``'cancelada'``).
+        spot_liquidacion: Tipo de cambio al momento de liquidar (opcional).
+        pnl_mxn: Resultado neto de la cobertura en MXN (opcional).
+        db_path: Ruta a la base de datos.
+
+    Returns:
+        True si se actualizó al menos una fila, False si el ID no existe.
+    """
+    sql = """
+        UPDATE hedges
+        SET estado           = ?,
+            spot_liquidacion = COALESCE(?, spot_liquidacion),
+            pnl_mxn          = COALESCE(?, pnl_mxn),
+            updated_at       = datetime('now')
+        WHERE id = ?
+    """
+    with get_connection(db_path) as conn:
+        cur = conn.execute(sql, (estado, spot_liquidacion, pnl_mxn, hedge_id))
+        return cur.rowcount > 0
+
+
+def get_expiring_hedges(dias: int = 7, db_path: Path = DB_PATH) -> list[dict]:
+    """Retorna coberturas activas que vencen en los próximos N días.
+
+    Args:
+        dias: Número de días hacia adelante a considerar.
+        db_path: Ruta a la base de datos.
+
+    Returns:
+        Lista de diccionarios ordenados por fecha_vencimiento ascendente.
+    """
+    sql = """
+        SELECT * FROM hedges
+        WHERE estado = 'activa'
+          AND fecha_vencimiento BETWEEN date('now') AND date('now', :offset)
+        ORDER BY fecha_vencimiento ASC
+    """
+    with get_connection(db_path) as conn:
+        rows = conn.execute(sql, {"offset": f"+{dias} days"}).fetchall()
+    return [dict(r) for r in rows]
 
 
 def update_prospect_diagnostic(

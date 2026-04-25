@@ -55,6 +55,11 @@ _FALLBACK_SCENARIO = (
     "Las métricas cuantitativas del escenario han sido calculadas correctamente."
 )
 
+_FALLBACK_REPORT = (
+    "Recomendaciones no disponibles temporalmente. "
+    "Las métricas cuantitativas de su posición están actualizadas en este reporte."
+)
+
 
 class HedgePointLLM:
     """
@@ -433,3 +438,79 @@ INSTRUCCIONES:
         except Exception as exc:
             logger.error("Error al llamar a Claude API (analyze_scenario): %s", exc)
             return _FALLBACK_SCENARIO
+
+    # ------------------------------------------------------------------
+    # Report recommendations
+    # ------------------------------------------------------------------
+
+    def generate_report_recommendations(
+        self,
+        resumen_mercado: dict,
+        pnl_resumen: dict,
+    ) -> str:
+        """Genera recomendaciones ejecutivas para el reporte periódico del cliente.
+
+        Los datos se asumen ya anonimizados por el caller (montos en rangos,
+        sin nombres de empresa ni personas).  Se aplica ``anonymizer.anonymize``
+        como safety net adicional antes de enviar a la API.
+
+        Parameters
+        ----------
+        resumen_mercado : dict
+            Contexto de mercado.  Claves esperadas:
+            ``spot``, ``variacion_semanal`` (float, porcentaje),
+            ``volatilidad_30d`` (float, porcentaje anualizado).
+        pnl_resumen : dict
+            Salida de ``resumen_pnl_cliente()``.  Claves usadas:
+            ``total_mtm_mxn``, ``exposicion_residual_usd``,
+            ``num_coberturas``, ``proximos_vencimientos``.
+
+        Returns
+        -------
+        str
+            Recomendaciones concretas en español (≤ 200 palabras), o fallback
+            si la API no está disponible.
+        """
+        spot        = resumen_mercado.get("spot", 0)
+        var_sem     = resumen_mercado.get("variacion_semanal", 0)
+        vol_30d     = resumen_mercado.get("volatilidad_30d", 0)
+        mtm         = pnl_resumen.get("total_mtm_mxn", 0)
+        exp_res     = pnl_resumen.get("exposicion_residual_usd", 0) or 0
+        num_cob     = pnl_resumen.get("num_coberturas", 0)
+        por_vencer  = len(pnl_resumen.get("proximos_vencimientos", []))
+
+        tendencia = "al alza" if var_sem > 0 else "a la baja" if var_sem < 0 else "lateral"
+
+        prompt = f"""Eres un asesor financiero de HedgePoint MX. Genera recomendaciones \
+concretas y accionables para un dueño de PyME mexicana basándote ÚNICAMENTE en estos números.
+
+SITUACIÓN ACTUAL:
+- Spot USD/MXN: ${spot:.4f}
+- Variación semanal: {var_sem:+.2f}% ({tendencia})
+- Volatilidad 30 días (anualizada): {vol_30d:.1f}%
+- P&L mark-to-market de coberturas activas: ${mtm:,.0f} MXN
+- Exposición residual sin cubrir: ${exp_res:,.0f} USD
+- Coberturas activas: {num_cob}
+- Coberturas que vencen en los próximos 30 días: {por_vencer}
+
+INSTRUCCIONES:
+- Da exactamente 3 recomendaciones numeradas, específicas a estos números
+- Cada recomendación debe mencionar un número concreto del contexto anterior
+- Si hay coberturas por vencer pronto, indica qué hacer con ellas
+- Si la exposición residual es significativa, recomienda cubrir qué porción
+- Si el P&L es negativo, explica si conviene mantener o ajustar
+- Tono: directo, sin jerga. Máximo 200 palabras en total. En español."""
+
+        clean_prompt = self.anonymizer.anonymize(prompt)
+
+        try:
+            message = self._client.messages.create(
+                model=self._model,
+                max_tokens=350,
+                timeout=_TIMEOUT_SECONDS,
+                messages=[{"role": "user", "content": clean_prompt}],
+            )
+            return message.content[0].text
+        except Exception as exc:
+            logger.error("Error al llamar a Claude API (report_recommendations): %s", exc)
+            return _FALLBACK_REPORT
