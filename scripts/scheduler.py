@@ -22,8 +22,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import schedule
 from dotenv import load_dotenv
 
-from core.database import init_db, insert_fx_rate
-from core.data.market_data import fetch_usdmxn_banxico
+from core.database import init_db, insert_fx_rate, insert_interest_rate
+from core.data.market_data import fetch_usdmxn_banxico, fetch_tiie_banxico, fetch_sofr_fred
 from core.market_data import get_all_commodities
 
 load_dotenv()
@@ -79,11 +79,33 @@ def job_commodities() -> None:
         logger.error("[COMM]  ERROR — %s", e)
 
 
+def job_interest_rates() -> None:
+    """Descarga TIIE 28d (Banxico) y SOFR (FRED) e inserta en SQLite."""
+    now = datetime.now()
+    fecha_str = now.strftime("%Y-%m-%d")
+    hora_str = now.strftime("%H:%M:%S")
+
+    try:
+        tiie = fetch_tiie_banxico(days=7)
+        insert_interest_rate(fecha_str, hora_str, "TIIE28D", tiie, "Banxico")
+        logger.info("[IR]  TIIE28D rate=%.4f  [OK]", tiie)
+    except Exception as e:
+        logger.error("[IR]  TIIE28D ERROR — %s", e)
+
+    try:
+        sofr = fetch_sofr_fred()
+        insert_interest_rate(fecha_str, hora_str, "SOFR", sofr, "FRED")
+        logger.info("[IR]  SOFR rate=%.4f  [OK]", sofr)
+    except Exception as e:
+        logger.error("[IR]  SOFR ERROR — %s", e)
+
+
 def run_all() -> None:
-    """Ejecuta ambos jobs en secuencia."""
+    """Ejecuta todos los jobs en secuencia."""
     logger.info("--- Inicio de ciclo de descarga ---")
     job_fx()
     job_commodities()
+    job_interest_rates()
     logger.info("--- Ciclo completado ---")
 
 

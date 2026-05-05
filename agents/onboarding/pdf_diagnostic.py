@@ -70,6 +70,12 @@ CONTACTO_EMAIL = "contacto@hedgepointmx.com"
 CONTACTO_WEB   = "www.hedgepointmx.com"
 CONTACTO_WA    = "+52 (993) 170-1758"
 
+_DISCLAIMER_IA = (
+    "Este análisis fue generado con asistencia de inteligencia artificial y datos de mercado "
+    "públicos. No constituye asesoría financiera. Consulte a un profesional antes de tomar "
+    "decisiones de inversión."
+)
+
 
 # ---------------------------------------------------------------------------
 # Typography styles
@@ -156,6 +162,10 @@ def _estilos() -> dict:
     s["cta_sub"] = ParagraphStyle(
         "cta_sub", fontName="Helvetica", fontSize=9,
         textColor=GRIS, alignment=TA_CENTER, leading=14,
+    )
+    s["disclaimer_ia"] = ParagraphStyle(
+        "disclaimer_ia", fontName="Helvetica", fontSize=7,
+        textColor=GRIS, alignment=TA_CENTER, leading=10, spaceBefore=10,
     )
 
     return s
@@ -498,11 +508,13 @@ def _pagina_riesgo(exposure: dict, market_context: str, st: dict) -> list:
         ("15%", tc * 1.15, exposure["perdida_potencial_15pct"]),
     ]
 
+    margen_anual_mxn = exposure.get("margen_anual_mxn") or (exp_usd * tc * 0.12)
+
     header = ["Si el dólar sube…", "TC resultante", "Pérdida estimada (MXN)",
-              "Impacto sobre ingreso anual"]
+              "Impacto sobre margen de utilidad"]
     rows   = [header]
     for pct, tc_esc, perdida in escenarios:
-        impacto = perdida / (exp_usd * tc) * 100 if tc > 0 else 0
+        impacto = perdida / margen_anual_mxn * 100 if margen_anual_mxn > 0 else 0
         rows.append([
             pct,
             f"${tc_esc:.4f}",
@@ -522,8 +534,13 @@ def _pagina_riesgo(exposure: dict, market_context: str, st: dict) -> list:
     # Market context
     if market_context and "no disponible" not in market_context.lower():
         story.append(Paragraph("Contexto de mercado", st["sub_seccion"]))
-        for para in _split_paragraphs(market_context):
+        for para in _split_paragraphs(_strip_markdown(market_context)):
             story.append(Paragraph(para, st["cuerpo"]))
+
+    # Disclaimer IA
+    story.append(Spacer(1, 0.3 * cm))
+    story.append(HRFlowable(width="100%", thickness=0.3, color=GRIS))
+    story.append(Paragraph(_DISCLAIMER_IA, st["disclaimer_ia"]))
 
     return story
 
@@ -535,40 +552,52 @@ def _pagina_diagnostico(insights: str, st: dict) -> list:
     story.append(HRFlowable(width="100%", thickness=0.5, color=AZUL_CLARO))
     story.append(Spacer(1, 0.3 * cm))
 
-    # Split the LLM text into labeled sections
-    sections = _parse_insights(insights)
+    # Strip markdown before parsing and rendering
+    clean_insights = _strip_markdown(insights)
+    sections = _parse_insights(clean_insights)
 
     for title, body in sections:
-        is_next_step = "siguiente" in title.lower() or "paso" in title.lower()
-
         if title:
             story.append(Paragraph(title, st["sub_seccion"]))
-
-        if is_next_step and body:
-            # Highlight the next-step block in a green box
-            inner = ParagraphStyle(
-                "_ns", fontName="Helvetica", fontSize=9,
-                textColor=colors.HexColor("#1a4731"),
-                alignment=TA_JUSTIFY, leading=13,
-            )
-            cell = Table(
-                [[Paragraph(body, inner)]],
-                colWidths=[PAGE_W - 3.6 * cm],
-            )
-            cell.setStyle(TableStyle([
-                ("BACKGROUND",    (0, 0), (-1, -1), VERDE_CLARO),
-                ("BOX",           (0, 0), (-1, -1), 0.5, VERDE),
-                ("TOPPADDING",    (0, 0), (-1, -1), 10),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
-                ("LEFTPADDING",   (0, 0), (-1, -1), 12),
-                ("RIGHTPADDING",  (0, 0), (-1, -1), 12),
-            ]))
-            story.append(cell)
-        else:
-            for para in _split_paragraphs(body):
-                story.append(Paragraph(para, st["cuerpo"]))
-
+        for para in _split_paragraphs(body):
+            story.append(Paragraph(para, st["cuerpo"]))
         story.append(Spacer(1, 0.2 * cm))
+
+    # --- Recuadro CTA: estrategia reservada para análisis completo ---
+    story.append(Spacer(1, 0.4 * cm))
+    _cta_titulo = ParagraphStyle(
+        "_cta_t", fontName="Helvetica-Bold", fontSize=9,
+        textColor=AZUL, alignment=TA_CENTER, leading=13,
+    )
+    _cta_cuerpo = ParagraphStyle(
+        "_cta_b", fontName="Helvetica", fontSize=8,
+        textColor=GRIS, alignment=TA_CENTER, leading=12,
+    )
+    cta_cell = Table(
+        [
+            [Paragraph("Estrategia recomendada disponible en el análisis personalizado completo.", _cta_titulo)],
+            [Paragraph(
+                "Agende una reunión para recibir una recomendación adaptada a su perfil.",
+                _cta_cuerpo,
+            )],
+        ],
+        colWidths=[PAGE_W - 3.6 * cm],
+    )
+    cta_cell.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, -1), GRIS_CLARO),
+        ("BOX",           (0, 0), (-1, -1), 0.5, GRIS),
+        ("TOPPADDING",    (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 14),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 14),
+        ("ROWBACKGROUNDS", (0, 0), (-1, -1), [GRIS_CLARO]),
+    ]))
+    story.append(cta_cell)
+
+    # Disclaimer IA
+    story.append(Spacer(1, 0.3 * cm))
+    story.append(HRFlowable(width="100%", thickness=0.3, color=GRIS))
+    story.append(Paragraph(_DISCLAIMER_IA, st["disclaimer_ia"]))
 
     return story
 
@@ -585,10 +614,50 @@ def _pagina_cta(exposure: dict, prospect: dict, st: dict) -> list:
     exp_mxn  = exposure["exposicion_anual_mxn"]
     tc       = exposure.get("tipo_cambio_usado", 17.5)
 
-    # Estimated monthly costs per strategy (generic market spreads)
-    costo_forward = volumen * 0.03
-    costo_opciones = volumen * 0.06
-    costo_collar   = volumen * 0.02
+    # Costos mensuales por estrategia = prima teórica + spread bancario $0.05/USD
+    import math as _math
+    from core.models.pricing import calcular_forward, calcular_opcion_gk, get_tasas_actuales
+    from datetime import date as _date
+    _spread = 0.05
+    _tasas = get_tasas_actuales()
+    _tiie = _tasas["tiie"]
+    _sofr = _tasas["sofr"]
+
+    # Prima TIIE/SOFR del forward a 30 días
+    _fwd = calcular_forward(spot=tc, dias=30)
+    _prima_fwd = _fwd.forward - tc
+    costo_forward = volumen * (_prima_fwd + _spread)
+
+    # Volatilidad: intentar BD real; fallback 8.5% anual
+    _vol_anual = 0.085
+    try:
+        import numpy as _np
+        from core.database import get_connection, DB_PATH
+        with get_connection(DB_PATH) as _conn:
+            _rows = _conn.execute(
+                "SELECT tc FROM fx_rates ORDER BY fecha DESC LIMIT 32"
+            ).fetchall()
+        if len(_rows) >= 5:
+            _tcs = [r[0] for r in reversed(_rows)]
+            _rets = [_math.log(_tcs[i] / _tcs[i - 1]) for i in range(1, len(_tcs))]
+            _vol_anual = float(_np.std(_rets, ddof=1)) * _math.sqrt(252)
+    except Exception:
+        pass  # BD no disponible — usar fallback
+
+    # Prima put ATM y collar (put ATM comprado − call OTM 3% vendido)
+    try:
+        _gk_put  = calcular_opcion_gk(spot=tc, strike=tc,        dias=30,
+                                      vol=_vol_anual, tiie=_tiie, sofr=_sofr)
+        _gk_call = calcular_opcion_gk(spot=tc, strike=tc * 1.03, dias=30,
+                                      vol=_vol_anual, tiie=_tiie, sofr=_sofr)
+        _prima_put_neta   = _gk_put.put
+        _prima_collar_neta = _gk_put.put - _gk_call.call   # ingreso del call vendido reduce costo
+    except ValueError:
+        _prima_put_neta    = _vol_anual * 0.4 * tc
+        _prima_collar_neta = _prima_put_neta * 0.5
+
+    costo_opciones = volumen * (_prima_put_neta    + _spread)
+    costo_collar   = volumen * (_prima_collar_neta + _spread)
 
     # --- Strategy comparison table ---
     st_nota = ParagraphStyle(
@@ -640,7 +709,7 @@ def _pagina_cta(exposure: dict, prospect: dict, st: dict) -> list:
             _td("Piso + techo", left=True),
             _td(f"${costo_collar:,.0f}"),
             _td("Parcial — protege caídas", left=True),
-            _td("Menor costo, pero limita ganancia si el peso se aprecia mucho", left=True),
+            _td("Costo intermedio — limita ganancia si el peso se aprecia mucho", left=True),
         ],
     ]
 
@@ -657,8 +726,11 @@ def _pagina_cta(exposure: dict, prospect: dict, st: dict) -> list:
     story.append(t)
     story.append(Spacer(1, 0.15 * cm))
     story.append(Paragraph(
-        "* Costos estimados con spreads promedio de mercado. "
-        "Los costos reales dependen de las condiciones del momento de contratación.",
+        "* Costos calculados con Garman-Kohlhagen (GK) usando volatilidad histórica y "
+        "diferencial de tasas TIIE/SOFR. Forward = costo más bajo (solo diferencial de tasas + spread). "
+        "Collar = costo intermedio (prima put − ingreso call vendido + spread). "
+        "Opciones = costo más alto, pero máxima flexibilidad. "
+        "Costos reales dependen de condiciones de mercado al momento de contratación.",
         st_nota,
     ))
     story.append(Spacer(1, 0.5 * cm))
@@ -744,7 +816,7 @@ def _parse_insights(text: str) -> list[tuple[str, str]]:
 
     sections: list[tuple[str, str]] = []
     for i, m in enumerate(matches):
-        title = m.group(1).strip().title()
+        title = m.group(1).strip().capitalize()
         start = m.end()
         end   = matches[i + 1].start() if i + 1 < len(matches) else len(text)
         body  = text[start:end].strip()
@@ -752,6 +824,9 @@ def _parse_insights(text: str) -> list[tuple[str, str]]:
             sections.append((title, body))
 
     return sections if sections else [("", text.strip())]
+
+
+from core.utils import strip_markdown as _strip_markdown
 
 
 def _split_paragraphs(text: str) -> list[str]:
@@ -778,7 +853,7 @@ def generar_pdf_diagnostico(
         ``market_context``.
     output_path : str, optional
         Destination file path.  If ``None``, the file is saved to
-        ``output/diagnostico_{empresa}_{YYYY-MM-DD}.pdf``.
+        ``output/diagnosticos/diagnostico_{empresa}_{YYYY-MM-DD}.pdf``.
 
     Returns
     -------
@@ -793,12 +868,15 @@ def generar_pdf_diagnostico(
     empresa = prospect.get("empresa", "prospecto")
     # Sanitise company name for use in filename
     empresa_slug = re.sub(r"[^a-zA-Z0-9_\-]", "_", empresa)[:40]
-    fecha_str    = date.today().strftime("%Y-%m-%d")
+    from datetime import datetime as _dt
+    _now      = _dt.now()
+    fecha_str = _now.strftime("%Y-%m-%d")
+    hhmm_str  = _now.strftime("%H%M")
 
     if output_path is None:
-        out_dir = Path(__file__).parent.parent.parent / "output"
+        out_dir = Path(__file__).parent.parent.parent / "output" / "diagnosticos"
         out_dir.mkdir(parents=True, exist_ok=True)
-        output_path = str(out_dir / f"diagnostico_{empresa_slug}_{fecha_str}.pdf")
+        output_path = str(out_dir / f"diagnostico_{empresa_slug}_{fecha_str}_{hhmm_str}.pdf")
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 

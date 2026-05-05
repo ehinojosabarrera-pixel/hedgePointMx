@@ -1,7 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python scripts/run_reports.py --help)"
+      "Bash(python scripts/run_reports.py --help)",
+      "Bash(python -m pytest tests/ -v --tb=short)",
+      "Bash(python -c \"import agents.simulator.pdf_generator; print\\('OK'\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(python -m pytest tests/ -v --tb=short -q)",
+      "Bash(python -m py_compile agents/simulator/pdf_generator.py)",
+      "Bash(python -m py_compile agents/onboarding/pdf_diagnostic.py)",
+      "Bash(python -m pytest tests/ --ignore=tests/test_interest_rates.py -q)"
     ]
   }
 }

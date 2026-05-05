@@ -56,6 +56,7 @@ import re
 from typing import Literal
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +119,7 @@ class FieldEncryptor:
     """
 
     def __init__(self, env_var: str = _ENV_KEY) -> None:
+        load_dotenv()
         passphrase = os.environ.get(env_var, "").strip()
         if not passphrase:
             raise ValueError(

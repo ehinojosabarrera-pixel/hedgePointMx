@@ -62,8 +62,8 @@ class ParametrosCliente:
     spread_banco: float = 0.05
     """Spread del banco en MXN/USD cobrado al ejecutar el forward (default: 5 centavos)."""
 
-    markup_hedgepoint: float = 0.04
-    """Markup de HedgePoint en MXN/USD (default: 4 centavos)."""
+    markup_hedgepoint: float = 0.00
+    """Markup de HedgePoint en MXN/USD (default: 0 — sin markup en fase inicial)."""
 
     fee_mensual: float = 15_000.0
     """Fee fijo mensual de consultoría HedgePoint en MXN (default: $15,000)."""
@@ -171,16 +171,6 @@ class ResumenAnual:
         else:
             return "Estable"
 
-    @property
-    def tendencia_fx_en(self) -> str:
-        """English version of FX trend label."""
-        diff = self.tc_promedio_forward - self.tc_promedio_spot
-        if diff > 0.10:
-            return "Depreciation"
-        elif diff < -0.10:
-            return "Appreciation"
-        else:
-            return "Stable"
 
 
 @dataclass
@@ -569,12 +559,14 @@ class SimuladorAhorro:
     def __init__(
         self,
         parametros: ParametrosCliente,
-        years: int = 2,
+        years: int = 1,
         db_path: Path = DB_PATH,
+        anio: int | None = None,
     ) -> None:
         self.parametros = parametros
         self.years = years
         self.db_path = db_path
+        self.anio = anio
 
     def ejecutar(self) -> ResultadoSimulacion:
         """
@@ -587,14 +579,26 @@ class SimuladorAhorro:
             ValueError: Si no hay datos suficientes en la DB.
         """
         hoy = date.today()
-        # Necesitamos datos 30 días extra al inicio para calcular el primer forward
-        fecha_inicio_datos = date(hoy.year - self.years, hoy.month, 1)
+
+        if self.anio is not None:
+            # Año calendario fijo: simular enero–diciembre del año dado
+            anio = self.anio
+            if anio > hoy.year or anio < 2000:
+                raise ValueError(
+                    f"El año {anio} no es válido. Usa un año entre 2000 y {hoy.year}."
+                )
+            fecha_inicio_datos = date(anio, 1, 1)
+            fecha_fin = date(anio, 12, 31) if anio < hoy.year else hoy
+        else:
+            fecha_inicio_datos = date(hoy.year - self.years, hoy.month, 1)
+            fecha_fin = hoy
+
+        # Necesitamos datos 30 días extra antes del inicio para calcular el primer forward
         fecha_datos_extendida = date(
             fecha_inicio_datos.year - (1 if fecha_inicio_datos.month == 1 else 0),
             ((fecha_inicio_datos.month - 2) % 12) + 1,
             1,
         )
-        fecha_fin = hoy
 
         df_fx = _cargar_fx_historico(fecha_datos_extendida, fecha_fin, self.db_path)
 

@@ -337,6 +337,9 @@ class TestWithoutApiKey:
     @pytest.fixture()
     def orch_no_llm(self, tmp_db, quiet_console, monkeypatch):
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        # Evitar que load_dotenv() en HedgePointLLM.__init__ restaure la key desde .env
+        import core.llm_client as llm_mod
+        monkeypatch.setattr(llm_mod, "load_dotenv", lambda **kw: None)
         import agents.onboarding.diagnostic as diag_mod
         from core.database import (
             insert_prospect as real_insert,

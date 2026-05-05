@@ -477,13 +477,18 @@ def calculate_exposure(data: dict) -> dict:
     margen_mxn = exposicion_anual_mxn * margen
     margen_en_riesgo = perdida_10pct > margen_mxn
 
-    # Spread estimate: $0.03 MXN per USD (bank spread for unhedged spot purchase)
-    costo_forward_mensual = volumen_mensual * 0.03
+    # Costo del forward = prima TIIE/SOFR (diferencial de tasas a 30 días) + spread bancario $0.05/USD
+    from core.models.pricing import calcular_forward
+    _fwd = calcular_forward(spot=tc, dias=30)
+    _prima_tiie_sofr = _fwd.forward - tc          # MXN/USD diferencial puro de tasas
+    _spread_banco = 0.05
+    costo_forward_mensual = volumen_mensual * (_prima_tiie_sofr + _spread_banco)
 
     return {
         "exposicion_anual_usd":           exposicion_anual_usd,
         "tipo_cambio_usado":              tc,
         "exposicion_anual_mxn":           exposicion_anual_mxn,
+        "margen_anual_mxn":               margen_mxn,
         "perdida_potencial_5pct":         perdida_5pct,
         "perdida_potencial_10pct":        perdida_10pct,
         "perdida_potencial_15pct":        perdida_15pct,

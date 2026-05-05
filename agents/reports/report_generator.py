@@ -48,8 +48,15 @@ from core.database import (
     get_prospect,
 )
 from core.models.hedge_pnl import resumen_pnl_cliente
+from core.utils import strip_markdown
 
 logger = logging.getLogger(__name__)
+
+_DISCLAIMER_IA = (
+    "Este análisis fue generado con asistencia de inteligencia artificial y datos de mercado "
+    "públicos. No constituye asesoría financiera. Consulte a un profesional antes de tomar "
+    "decisiones de inversión."
+)
 
 _MESES_ES = {
     1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
@@ -154,6 +161,10 @@ def _estilos() -> dict:
     s["cta_sub"] = ParagraphStyle(
         "cta_sub", fontName="Helvetica", fontSize=9,
         textColor=GRIS, alignment=TA_CENTER, leading=14,
+    )
+    s["disclaimer_ia"] = ParagraphStyle(
+        "disclaimer_ia", fontName="Helvetica", fontSize=7,
+        textColor=GRIS, alignment=TA_CENTER, leading=10, spaceBefore=10,
     )
 
     return s
@@ -440,8 +451,12 @@ def _pagina_recomendaciones(resumen_mercado: dict, pnl_resumen: dict, st: dict) 
     except Exception as exc:
         logger.warning("LLM no disponible para recomendaciones: %s", exc)
 
-    for para in _split_paragraphs(texto_rec):
+    for para in _split_paragraphs(strip_markdown(texto_rec)):
         story.append(Paragraph(para, st["cuerpo"]))
+
+    story.append(Spacer(1, 0.3 * cm))
+    story.append(HRFlowable(width="100%", thickness=0.3, color=GRIS))
+    story.append(Paragraph(_DISCLAIMER_IA, st["disclaimer_ia"]))
 
     return story
 

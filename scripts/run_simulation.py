@@ -181,7 +181,7 @@ def _solicitar_parametros_interactivo() -> dict:
         "volumen": volumen,
         "margen": margen,
         "frecuencia": frecuencia,
-        "output": f"output/reporte_{nombre_archivo}.pdf",
+        "output": f"output/simulaciones/reporte_{nombre_archivo}.pdf",
     }
 
 
@@ -190,12 +190,13 @@ def ejecutar_simulacion_forward(
     margen: float,
     frecuencia: str,
     output: str,
-    years: int = 5,
+    years: int = 1,
     spread: float = 0.05,
-    markup: float = 0.04,
+    markup: float = 0.00,
     fee: float = 15_000.0,
     con_plazos: bool = False,
     cobertura: float = 100.0,
+    anio: int | None = None,
 ) -> None:
     """
     Ejecuta la simulación de forwards y genera el PDF.
@@ -205,24 +206,27 @@ def ejecutar_simulacion_forward(
         margen: Margen de utilidad como decimal (0.12 = 12%).
         frecuencia: Frecuencia de compra ('mensual', 'quincenal', 'semanal').
         output: Ruta del PDF de salida.
-        years: Años de histórico a simular.
+        years: Años de histórico a simular (ignorado si anio se especifica).
         spread: Spread del banco en MXN/USD (default: 0.05).
-        markup: Markup HedgePoint en MXN/USD (default: 0.04).
+        markup: Markup HedgePoint en MXN/USD (default: 0.00 — sin markup en fase inicial).
         fee: Fee mensual HedgePoint en MXN (default: 15,000).
         con_plazos: Si True, ejecuta simulación multi-plazo (30/60/90d).
         cobertura: Porcentaje del volumen mensual cubierto con forward (default: 100).
+        anio: Año calendario específico a analizar (p.ej. 2024). Si se especifica,
+              sobrescribe years y simula solo ese año.
     """
     from agents.simulator.savings_simulator import (
         ParametrosCliente, SimuladorAhorro, simular_multi_plazo,
     )
     from agents.simulator.pdf_generator import generar_pdf
 
+    _periodo_str = str(anio) if anio else f"{years} año(s)"
     print("\n" + "-" * 60)
     print("  Configuración de la simulación:")
     print(f"    Volumen mensual:    USD ${volumen:,.0f}")
     print(f"    Margen de utilidad: {margen*100:.1f}%")
     print(f"    Frecuencia:         {frecuencia}")
-    print(f"    Período:            {years} años")
+    print(f"    Período:            {_periodo_str}")
     print(f"    Spread banco:       ${spread:.2f} MXN/USD")
     print(f"    Markup HedgePoint:  ${markup:.2f} MXN/USD")
     print(f"    Fee mensual HP:     ${fee:,.0f} MXN")
@@ -244,7 +248,7 @@ def ejecutar_simulacion_forward(
 
     # 2. Ejecutar simulación principal (plazo 30d)
     print("\nEjecutando simulación de backtesting (plazo 30 días)...")
-    sim = SimuladorAhorro(params, years=years)
+    sim = SimuladorAhorro(params, years=years, anio=anio)
     try:
         resultado = sim.ejecutar()
     except ValueError as e:
@@ -286,8 +290,8 @@ def ejecutar_simulacion_opciones(
     margen: float,
     frecuencia: str,
     output: str,
-    years: int = 5,
-    markup: float = 0.04,
+    years: int = 1,
+    markup: float = 0.00,
     fee: float = 15_000.0,
     markup_banco_pct: float = 0.15,
 ) -> None:
@@ -300,7 +304,7 @@ def ejecutar_simulacion_opciones(
         frecuencia: Frecuencia de compra ('mensual', 'quincenal', 'semanal').
         output: Ruta del PDF de salida.
         years: Años de histórico a simular.
-        markup: Markup HedgePoint en MXN/USD (default: 0.04).
+        markup: Markup HedgePoint en MXN/USD (default: 0.00 — sin markup en fase inicial).
         fee: Fee mensual HedgePoint en MXN (default: 15,000).
         markup_banco_pct: Markup del banco sobre la prima teórica GK (default: 15%).
     """
@@ -366,8 +370,8 @@ def ejecutar_simulacion_collar(
     margen: float,
     frecuencia: str,
     output: str,
-    years: int = 5,
-    markup: float = 0.04,
+    years: int = 1,
+    markup: float = 0.00,
     fee: float = 15_000.0,
     markup_banco_pct: float = 0.15,
     call_otm_pct: float = 0.03,
@@ -381,7 +385,7 @@ def ejecutar_simulacion_collar(
         frecuencia: Frecuencia de compra ('mensual', 'quincenal', 'semanal').
         output: Ruta del PDF de salida.
         years: Años de histórico a simular.
-        markup: Markup HedgePoint en MXN/USD (default: 0.04).
+        markup: Markup HedgePoint en MXN/USD (default: 0.00 — sin markup en fase inicial).
         fee: Fee mensual HedgePoint en MXN (default: 15,000).
         markup_banco_pct: Markup del banco sobre las primas teóricas GK (default: 15%).
         call_otm_pct: Distancia OTM del call vendido como fracción (default: 3%).
@@ -450,9 +454,9 @@ def ejecutar_simulacion_comparativa(
     margen: float,
     frecuencia: str,
     output: str,
-    years: int = 5,
+    years: int = 1,
     spread: float = 0.05,
-    markup: float = 0.04,
+    markup: float = 0.00,
     fee: float = 15_000.0,
     markup_banco_pct: float = 0.15,
     call_otm_pct: float = 0.03,
@@ -564,7 +568,7 @@ def ejecutar_simulacion_comparativa(
     # 5. Generar PDF con sección comparativa integrada
     print("\nGenerando PDF comparativo...")
     try:
-        ruta_pdf = generar_pdf(resultado_fwd, output, comparativa=comparativa)
+        ruta_pdf = generar_pdf(resultado_fwd, output)
         print(f"\n  PDF generado exitosamente:")
         print(f"  → {ruta_pdf.resolve()}")
     except ImportError as e:
@@ -589,10 +593,11 @@ def main() -> None:
         epilog="""
 Ejemplos:
   python scripts/run_simulation.py --demo
+  python scripts/run_simulation.py --volumen 300000 --margen 12 --year 2024
   python scripts/run_simulation.py --volumen 300000 --margen 12 --estrategia forward --plazos
   python scripts/run_simulation.py --volumen 300000 --margen 12 --estrategia opcion
   python scripts/run_simulation.py --volumen 300000 --margen 12 --estrategia opcion --markup-banco 20
-  python scripts/run_simulation.py --volumen 500000 --margen 8 --spread 0.05 --markup 0.04 --fee 15000 --plazos
+  python scripts/run_simulation.py --volumen 500000 --margen 8 --spread 0.05 --markup 0.00 --fee 15000 --year 2023
         """,
     )
     parser.add_argument(
@@ -628,8 +633,19 @@ Ejemplos:
     parser.add_argument(
         "--years",
         type=int,
-        default=5,
-        help="Años de histórico a simular (default: 5)",
+        default=1,
+        help="Años de histórico a simular (default: 1)",
+    )
+    parser.add_argument(
+        "--year",
+        type=int,
+        default=None,
+        dest="year",
+        help=(
+            "Año calendario específico a analizar (p.ej. 2024). "
+            "Si se especifica, sobrescribe --years y simula solo ese año. "
+            "Default: último año con datos completos."
+        ),
     )
     parser.add_argument(
         "--spread",
@@ -640,8 +656,8 @@ Ejemplos:
     parser.add_argument(
         "--markup",
         type=float,
-        default=0.04,
-        help="Markup HedgePoint en MXN/USD (default: 0.04)",
+        default=0.00,
+        help="Markup HedgePoint en MXN/USD (default: 0.00 — sin markup en fase inicial)",
     )
     parser.add_argument(
         "--fee",
@@ -720,7 +736,7 @@ Ejemplos:
         fee = args.fee
         con_plazos = True         # siempre activo en modo demo
         cobertura = args.cobertura
-        output = args.output or f"output/reporte_demo_{_sufijo}_{_ts}.pdf"
+        output = args.output or f"output/simulaciones/reporte_demo_{_sufijo}_{_ts}.pdf"
     elif args.volumen is not None and args.margen is not None:
         volumen = args.volumen
         margen = args.margen / 100.0 if args.margen > 1 else args.margen
@@ -730,7 +746,7 @@ Ejemplos:
         fee = args.fee
         con_plazos = args.plazos
         cobertura = args.cobertura
-        output = args.output or f"output/reporte_{_sufijo}_{_ts}.pdf"
+        output = args.output or f"output/simulaciones/reporte_{_sufijo}_{_ts}.pdf"
     else:
         # Modo interactivo
         params_i = _solicitar_parametros_interactivo()
@@ -748,7 +764,12 @@ Ejemplos:
 
     # Verificar / descargar histórico
     if not args.skip_download:
-        _verificar_o_descargar_historico(years=args.years)
+        from datetime import date as _date
+        _hoy = _date.today()
+        _years_para_descarga = (
+            (_hoy.year - args.year + 1) if args.year else args.years
+        )
+        _verificar_o_descargar_historico(years=_years_para_descarga)
 
     # Dispatcher por estrategia
     estrategia = args.estrategia
@@ -765,6 +786,7 @@ Ejemplos:
             fee=fee,
             con_plazos=con_plazos,
             cobertura=cobertura,
+            anio=args.year,
         )
 
     elif estrategia == "opcion":

@@ -32,10 +32,10 @@ _DEMO_PROSPECT = {
     "email":               "carlos@importnorte.mx",
     "telefono":            "8112345678",
     "sector":              "Importador",
-    "volumen_usd_mensual": 350_000.0,
+    "volumen_usd_mensual": 100_000.0,
     "frecuencia_compra":   "Mensual",
     "plazo_pago_dias":     30,
-    "margen_utilidad":     0.12,
+    "margen_utilidad":     0.20,
     "usa_coberturas":      0,
     "moneda_principal":    "USD",
 }

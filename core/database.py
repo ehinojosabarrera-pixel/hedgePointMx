@@ -86,6 +86,18 @@ def init_db(db_path: Path = DB_PATH) -> None:
             CREATE INDEX IF NOT EXISTS idx_prospects_status
                 ON prospects (status);
 
+            CREATE TABLE IF NOT EXISTS interest_rates (
+                id      INTEGER PRIMARY KEY AUTOINCREMENT,
+                fecha   TEXT    NOT NULL,
+                hora    TEXT    NOT NULL,
+                symbol  TEXT    NOT NULL,
+                rate    REAL    NOT NULL,
+                source  TEXT    NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_ir_symbol_fecha
+                ON interest_rates (symbol, fecha DESC);
+
             CREATE TABLE IF NOT EXISTS hedges (
                 id                  INTEGER PRIMARY KEY AUTOINCREMENT,
                 prospect_id         INTEGER NOT NULL REFERENCES prospects(id),
@@ -252,6 +264,44 @@ def get_latest_commodities_all(
     with get_connection(db_path) as conn:
         rows = conn.execute(sql, (n,)).fetchall()
     return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Interest Rates (TIIE, SOFR)
+# ---------------------------------------------------------------------------
+
+def insert_interest_rate(
+    fecha: str,
+    hora: str,
+    symbol: str,
+    rate: float,
+    source: str,
+    db_path: Path = DB_PATH,
+) -> int:
+    """Inserta una tasa de interés en interest_rates. Retorna el rowid insertado."""
+    sql = """
+        INSERT INTO interest_rates (fecha, hora, symbol, rate, source)
+        VALUES (?, ?, ?, ?, ?)
+    """
+    with get_connection(db_path) as conn:
+        cur = conn.execute(sql, (fecha, hora, symbol, rate, source))
+        return cur.lastrowid
+
+
+def get_latest_interest_rate(
+    symbol: str,
+    db_path: Path = DB_PATH,
+) -> Optional[float]:
+    """Retorna la tasa más reciente para un símbolo (ej. 'TIIE28D', 'SOFR'), o None."""
+    sql = """
+        SELECT rate FROM interest_rates
+        WHERE symbol = ?
+        ORDER BY fecha DESC, hora DESC
+        LIMIT 1
+    """
+    with get_connection(db_path) as conn:
+        row = conn.execute(sql, (symbol,)).fetchone()
+    return float(row["rate"]) if row else None
 
 
 # ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 """
-Generador de PDF profesional bilingüe (español/inglés) para HedgePoint MX.
+Generador de PDF profesional en español para HedgePoint MX.
 
 Produce un reporte de simulación de ahorro por cobertura forward USD/MXN
 listo para presentar a prospectos.
@@ -354,75 +354,49 @@ def _grafica_tc_historico(df: pd.DataFrame, periodos_compra: list) -> Image:
 
 
 def _grafica_ahorro_acumulado(df_periodos: pd.DataFrame) -> Image:
-    """Genera las gráficas de ahorro mensual y acumulado apiladas verticalmente."""
+    """Genera la gráfica de resultado mensual forward vs spot (barras)."""
     n = len(df_periodos)
     periodos = df_periodos["periodo"].tolist()
-    # Mostrar etiqueta cada 3 meses para evitar sobreposición
     tick_step = max(1, round(n / 8))
     tick_indices = list(range(0, n, tick_step))
     tick_labels = [periodos[i] for i in tick_indices]
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 7))
+    fig, ax = plt.subplots(figsize=(10, 4.5))
     fig.patch.set_facecolor("white")
 
-    # --- Panel superior: resultado mensual en barras ---
     # Verde = forward ahorró vs spot; azul claro = cobertura costó más (costo de seguro, no pérdida)
     colores_barras = ["#2d8659" if v >= 0 else "#8eafd4"
                       for v in df_periodos["ahorro_mxn"]]
-    ax1.set_facecolor("#f9fafb")
-    ax1.bar(
+    ax.set_facecolor("#f9fafb")
+    ax.bar(
         range(n),
         df_periodos["ahorro_mxn"] / 1000,
         color=colores_barras,
         edgecolor="none",
         width=0.75,
     )
-    ax1.axhline(0, color="#374151", linewidth=0.8, linestyle="--")
-    ax1.set_xticks(tick_indices)
-    ax1.set_xticklabels(tick_labels, rotation=45, ha="right", fontsize=8)
-    ax1.tick_params(axis="y", labelsize=8)
-    ax1.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"${x:.0f}k"))
-    ax1.set_ylabel("Resultado vs Spot (miles MXN)", fontsize=10, color="#374151")
-    ax1.set_title("Resultado mensual: Forward vs Spot",
-                  fontsize=12, fontweight="bold", color="#1a365d")
-    # Leyenda compacta
+    ax.axhline(0, color="#374151", linewidth=0.8, linestyle="--")
+    ax.set_xticks(tick_indices)
+    ax.set_xticklabels(tick_labels, rotation=45, ha="right", fontsize=8)
+    ax.tick_params(axis="y", labelsize=8)
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"${x:.0f}k"))
+    ax.set_ylabel("Resultado vs Spot (miles MXN)", fontsize=10, color="#374151")
+    ax.set_title("Resultado mensual: Forward vs Spot",
+                 fontsize=12, fontweight="bold", color="#1a365d")
     from matplotlib.patches import Patch
-    ax1.legend(
+    ax.legend(
         handles=[
-            Patch(facecolor="#2d8659", label="Ahorro vs Spot / Savings vs Spot"),
-            Patch(facecolor="#8eafd4", label="Costo de protección / Hedging cost"),
+            Patch(facecolor="#2d8659", label="Ahorro vs Spot"),
+            Patch(facecolor="#8eafd4", label="Costo de protección"),
         ],
         fontsize=7, loc="upper right", framealpha=0.7,
     )
-    ax1.grid(True, alpha=0.3, linestyle="--")
-    ax1.spines["top"].set_visible(False)
-    ax1.spines["right"].set_visible(False)
-
-    # --- Panel inferior: resultado acumulado ---
-    ax2.set_facecolor("#f9fafb")
-    ahorro_acum = df_periodos["ahorro_acumulado_mxn"] / 1000
-    positivo = ahorro_acum >= 0
-    ax2.fill_between(range(n), 0, ahorro_acum,
-                     where=positivo, alpha=0.25, color="#2d8659")
-    # Zona bajo cero: azul claro (costo de seguro), no rojo
-    ax2.fill_between(range(n), 0, ahorro_acum,
-                     where=~positivo, alpha=0.20, color="#8eafd4")
-    ax2.plot(range(n), ahorro_acum,
-             color="#1a365d", linewidth=2, marker="o", markersize=4)
-    ax2.axhline(0, color="#374151", linewidth=0.8, linestyle="--")
-    ax2.set_xticks(tick_indices)
-    ax2.set_xticklabels(tick_labels, rotation=45, ha="right", fontsize=8)
-    ax2.tick_params(axis="y", labelsize=8)
-    ax2.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"${x:.0f}k"))
-    ax2.set_ylabel("Resultado acumulado (miles MXN)", fontsize=10, color="#374151")
-    ax2.set_title("Resultado acumulado: Forward vs Spot",
-                  fontsize=12, fontweight="bold", color="#1a365d")
-    ax2.grid(True, alpha=0.3, linestyle="--")
-    ax2.spines["top"].set_visible(False)
-    ax2.spines["right"].set_visible(False)
+    ax.grid(True, alpha=0.3, linestyle="--")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
 
     plt.tight_layout(pad=2.0)
-    return _imagen_desde_figura(fig, width_cm=16.5, max_height_cm=19.0)
+    return _imagen_desde_figura(fig, width_cm=16.5, max_height_cm=12.0)
 
 
 # ---------------------------------------------------------------------------
@@ -447,9 +421,7 @@ def _portada(resultado: ResultadoSimulacion, estilos: dict) -> list:
     elementos.append(Spacer(1, 1.5 * cm))
 
     # Título del reporte
-    titulo_es = "SIMULADOR DE AHORRO POR COBERTURA FORWARD"
-    titulo_en = "Forward Hedging Savings Simulator"
-    elementos.append(Paragraph(titulo_es, ParagraphStyle(
+    elementos.append(Paragraph("SIMULADOR DE AHORRO POR COBERTURA FORWARD", ParagraphStyle(
         "titulo_rep",
         fontName="Helvetica-Bold",
         fontSize=16,
@@ -459,22 +431,28 @@ def _portada(resultado: ResultadoSimulacion, estilos: dict) -> list:
         spaceBefore=10,
         spaceAfter=4,
     )))
-    elementos.append(Paragraph(titulo_en, ParagraphStyle(
-        "titulo_rep_en",
-        fontName="Helvetica",
-        fontSize=12,
-        textColor=colors.HexColor("#90adc9"),
-        alignment=TA_CENTER,
-    )))
     elementos.append(Spacer(1, 2.5 * cm))
+
+    # Formatear el período en español legible
+    _MESES_ES = {
+        1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+        5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+        9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre",
+    }
+    _pfi = resultado.fecha_inicio
+    _pff = resultado.fecha_fin
+    if _pfi.year == _pff.year:
+        _periodo_portada = f"{_MESES_ES[_pfi.month]} — {_MESES_ES[_pff.month]} {_pff.year}"
+    else:
+        _periodo_portada = f"{_MESES_ES[_pfi.month]} {_pfi.year} — {_MESES_ES[_pff.month]} {_pff.year}"
 
     # Datos del análisis en tabla centrada
     datos_tabla = [
-        ["Período analizado", f"{resultado.fecha_inicio} — {resultado.fecha_fin}"],
+        ["Período analizado", _periodo_portada],
         ["Volumen mensual", f"USD ${p.volumen_mensual_usd:,.0f}"],
         ["Margen de utilidad", f"{p.margen_utilidad * 100:.1f}%"],
         ["Frecuencia de compra", p.frecuencia.capitalize()],
-        ["Instrumento evaluado", "Forward a 30 días (USD/MXN)"],
+        ["Instrumento evaluado", "Forward, Opciones y Collar a 30 días (USD/MXN)"],
     ]
     t = Table(datos_tabla, colWidths=[5.5 * cm, 7 * cm])
     t.setStyle(TableStyle([
@@ -518,10 +496,13 @@ def _portada(resultado: ResultadoSimulacion, estilos: dict) -> list:
     return elementos
 
 
-def _kpi_box(numero: str, etiqueta: str, es_negativo: bool = False) -> Table:
-    """Genera un cuadro KPI individual."""
-    # Negativo = costo de protección (neutral), no pérdida → gris oscuro, no rojo
-    color_num = GRIS if es_negativo else VERDE
+def _kpi_box(numero: str, etiqueta: str, es_costo: bool = False) -> Table:
+    """
+    Cuadro KPI individual.
+    es_costo=True → número en gris oscuro (costo real, no pérdida).
+    es_costo=False → número en verde (resultado positivo o neutro).
+    """
+    color_num = GRIS if es_costo else VERDE
     estilo_num = ParagraphStyle(
         "kpi_n", fontName="Helvetica-Bold", fontSize=18,
         textColor=color_num, alignment=TA_CENTER, leading=22,
@@ -532,173 +513,205 @@ def _kpi_box(numero: str, etiqueta: str, es_negativo: bool = False) -> Table:
     )
     t = Table(
         [[Paragraph(numero, estilo_num)], [Paragraph(etiqueta, estilo_lbl)]],
-        colWidths=[3.8 * cm],
+        colWidths=[5.2 * cm],
     )
     t.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), AZUL_CLARO),
         ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#c5d4e8")),
-        ("TOPPADDING", (0, 0), (-1, -1), 8),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-        ("LEFTPADDING", (0, 0), (-1, -1), 4),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
     ]))
     return t
 
 
 def _resumen_ejecutivo(resultado: ResultadoSimulacion, estilos: dict) -> list:
-    """Genera la sección de resumen ejecutivo con KPIs."""
+    """Genera la sección de resumen ejecutivo rediseñada."""
     r = resultado
+    p = r.parametros
     elementos = []
 
-    elementos.append(Paragraph("Resumen Ejecutivo / Executive Summary",
-                               estilos["encabezado_seccion"]))
-    elementos.append(HRFlowable(width="100%", thickness=1.5, color=AZUL,
-                                spaceAfter=8))
+    elementos.append(Paragraph("Resumen Ejecutivo", estilos["encabezado_seccion"]))
+    elementos.append(HRFlowable(width="100%", thickness=1.5, color=AZUL, spaceAfter=6))
 
-    # Texto introductorio — enfoque en riesgo primero, costo de cobertura segundo
-    _meses_prot = sum(1 for pe in r.periodos if pe.ahorro_mxn > 0)
-    _danio_evitado = r.danio_total_evitado_mxn
-    _margen_anual = r.costo_total_spot_mxn * r.parametros.margen_utilidad
-    _danio_pct_margen = (
-        _danio_evitado / _margen_anual * 100 if _margen_anual > 0 else 0.0
-    )
-    _costo_prot_pct_vol = abs(r.ahorro_total_mxn) / r.costo_total_spot_mxn * 100 if r.costo_total_spot_mxn > 0 else 0.0
-    _prima_mensual = abs(r.ahorro_promedio_mensual_mxn)
+    # ------------------------------------------------------------------ #
+    # RECUADRO DE CONTEXTO — una línea con los parámetros clave
+    # ------------------------------------------------------------------ #
+    _MESES_ABR_CTX = {
+        1: "Ene", 2: "Feb", 3: "Mar", 4: "Abr", 5: "May", 6: "Jun",
+        7: "Jul", 8: "Ago", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dic",
+    }
 
-    texto_es = (
-        f"Durante el período <b>{r.fecha_inicio}</b> al <b>{r.fecha_fin}</b>, "
-        f"hubo <b>{_meses_prot}</b> meses donde el tipo de cambio se movió "
-        f"significativamente en contra de su operación. "
-        f"Sin cobertura, estos movimientos habrían costado "
-        f"<b>${_danio_evitado:,.0f} MXN</b> — equivalente al "
-        f"<b>{_danio_pct_margen:.1f}%</b> de su margen de utilidad. "
-        f"La estrategia de cobertura forward habría neutralizado estos golpes "
-        f"a un costo de protección de <b>{_costo_prot_pct_vol:.2f}%</b> del volumen operado "
-        f"(<b>${_prima_mensual:,.0f} MXN/mes</b>). "
-        f"<b>La cobertura es un seguro: su valor está en la certeza presupuestal, "
-        f"no en ganarle al mercado.</b>"
+    # Período: detectar si es un año completo o rango
+    _fi = r.fecha_inicio
+    _ff = r.fecha_fin
+    _periodo_str = (
+        f"{_MESES_ABR_CTX[_fi.month]}-{_MESES_ABR_CTX[_ff.month]} {_ff.year}"
+        if _fi.year == _ff.year
+        else f"{_MESES_ABR_CTX[_fi.month]} {_fi.year} — {_MESES_ABR_CTX[_ff.month]} {_ff.year}"
     )
-    texto_en = (
-        f"During the period <b>{r.fecha_inicio}</b> to <b>{r.fecha_fin}</b>, "
-        f"there were <b>{_meses_prot}</b> months when the exchange rate moved "
-        f"significantly against your operation. "
-        f"Without hedging, these moves would have cost "
-        f"<b>${_danio_evitado:,.0f} MXN</b> — equivalent to "
-        f"<b>{_danio_pct_margen:.1f}%</b> of your profit margin. "
-        f"A forward hedging strategy would have neutralized these hits "
-        f"at a protection cost of <b>{_costo_prot_pct_vol:.2f}%</b> of FX volume "
-        f"(<b>${_prima_mensual:,.0f} MXN/month</b>). "
-        f"<b>Hedging is insurance: its value lies in budget certainty, "
-        f"not in beating the market.</b>"
-    )
-    elementos.append(Paragraph(texto_es, estilos["cuerpo"]))
-    elementos.append(Paragraph(texto_en, ParagraphStyle(
-        "cuerpo_en", fontName="Helvetica-Oblique", fontSize=8.5,
-        textColor=GRIS, alignment=TA_JUSTIFY, leading=12, spaceAfter=10,
-    )))
 
-    # KPIs — fila 1: resultados de la cobertura
-    # Cuando el resultado es negativo se reframea como costo de protección (seguro cambiario)
-    _vol_total_mxn = r.costo_total_spot_mxn  # proxy del volumen operado en MXN
-    _costo_proteccion_pct = (
-        abs(r.ahorro_total_mxn) / _vol_total_mxn * 100
-        if _vol_total_mxn > 0 and r.ahorro_total_mxn < 0 else 0.0
-    )
-    _margen_total_mxn = (
-        _vol_total_mxn * r.parametros.margen_utilidad
-        if r.parametros.margen_utilidad > 0 else 1.0
-    )
-    _impacto_margen_pct = (
-        abs(r.ahorro_total_mxn) / _margen_total_mxn * 100
-        if r.ahorro_total_mxn < 0 else 0.0
-    )
-    _prima_mensual = abs(r.ahorro_promedio_mensual_mxn) if r.ahorro_promedio_mensual_mxn < 0 else 0.0
-
-    if r.ahorro_total_mxn >= 0:
-        kpis_fila1 = [
-            (f"${r.ahorro_total_mxn:,.0f}", "Ahorro total MXN\nTotal Savings MXN", False),
-            (f"${r.ahorro_promedio_mensual_mxn:,.0f}", "Ahorro promedio mensual\nAvg Monthly Savings", False),
-            (f"{r.ahorro_total_porcentaje:.2f}%", "Ahorro sobre costo total\nSavings on Total Cost", False),
-            (f"{r.porcentaje_meses_con_ahorro:.0f}%", "Meses con ahorro\nMonths with Savings",
-             r.porcentaje_meses_con_ahorro < 50),
-            (f"{r.total_meses}", "Meses analizados\nMonths Analyzed", False),
-        ]
+    # Volumen: mostrar rango si varía mes a mes (puede ser constante)
+    _vols = sorted({pe.volumen_usd for pe in r.periodos})
+    if len(_vols) == 1:
+        _vol_str = f"${_vols[0] / 1_000:,.0f}K USD/mes"
     else:
-        kpis_fila1 = [
-            (f"{_costo_proteccion_pct:.2f}%",
-             "Costo de protección\n(% del volumen operado)", True),
-            (f"${_prima_mensual:,.0f}",
-             "Prima de seguro cambiario\nHedging premium / month", True),
-            (f"{_impacto_margen_pct:.2f}%",
-             "Impacto sobre margen\nImpact on profit margin", True),
-            (f"{r.porcentaje_meses_con_ahorro:.0f}%",
-             "Meses en que el spot fue peor\nMonths spot exceeded forward", False),
-            (f"{r.total_meses}", "Meses analizados\nMonths Analyzed", False),
-        ]
-    # KPIs — fila 2: desglose de costos transaccionales
-    kpis_fila2 = [
-        (f"${r.costo_total_forward_teorico_mxn:,.0f}",
-         "Forward teórico acumulado\nTheoretical Forward Cost", False),
-        (f"${r.costo_total_banco_mxn:,.0f}",
-         "Costo total banco (spread)\nTotal Bank Cost (Spread)", True),
-        (f"${r.costo_total_markup_hp_mxn:,.0f}",
-         "Markup HedgePoint acumulado\nHedgePoint Markup", True),
-        (f"${r.costo_total_fee_hp_mxn:,.0f}",
-         "Fees HedgePoint acumulados\nHedgePoint Fees", True),
-        (f"${r.costo_total_hedgepoint_mxn:,.0f}",
-         "Costo total HedgePoint\nTotal HedgePoint Cost", True),
+        _vol_str = f"${_vols[0] / 1_000:,.0f}K–${_vols[-1] / 1_000:,.0f}K USD/mes"
+
+    # Cobertura
+    _cob_str = f"{p.cobertura_pct:.0f}%"
+
+    _ctx_texto = (
+        f"<b>Período:</b> {_periodo_str}  |  "
+        f"<b>Volumen:</b> {_vol_str}  |  "
+        f"<b>Cobertura:</b> {_cob_str}  |  "
+        f"<b>Instrumento:</b> Forward 30 días (USD/MXN)"
+    )
+    estilo_ctx = ParagraphStyle(
+        "ctx_linea", fontName="Helvetica", fontSize=8.5,
+        textColor=AZUL, alignment=TA_CENTER, leading=12,
+    )
+    caja_ctx = Table([[Paragraph(_ctx_texto, estilo_ctx)]], colWidths=[16 * cm])
+    caja_ctx.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), AZUL_CLARO),
+        ("BOX", (0, 0), (-1, -1), 0.8, AZUL_MEDIO),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+    ]))
+    elementos.append(caja_ctx)
+    elementos.append(Spacer(1, 0.35 * cm))
+
+    # ------------------------------------------------------------------ #
+    # PÁRRAFO NARRATIVO — 2-3 líneas
+    # ------------------------------------------------------------------ #
+    _meses_prot = sum(1 for pe in r.periodos if pe.ahorro_mxn > 0)
+    _margen_mensual_prom = (
+        r.costo_total_spot_mxn * p.margen_utilidad / r.total_meses
+        if r.total_meses > 0 else 1.0
+    )
+    _peor_mes_obj = r.mejor_mes  # mejor_mes = mayor ahorro = mayor riesgo sin cobertura
+    # Pérdida pura = diferencia (spot - forward_teórico) × volumen, sin spread/markup/fee.
+    # Consistente con el cálculo del top 3 en _seccion_analisis_riesgo.
+    _peor_mes_mxn = (
+        _peor_mes_obj.ahorro_mxn
+        + _peor_mes_obj.costo_spread_banco_mxn
+        + _peor_mes_obj.costo_markup_hp_mxn
+        + _peor_mes_obj.costo_fee_hp_mxn
+        if _peor_mes_obj and _peor_mes_obj.ahorro_mxn > 0 else 0.0
+    )
+    _peor_mes_pct_margen = (
+        _peor_mes_mxn / _margen_mensual_prom * 100
+        if _margen_mensual_prom > 0 and _peor_mes_mxn > 0 else 0.0
+    )
+
+    # Costo real de protección = prima TIIE/SOFR pura + spread banco.
+    # prima_fwd = Σ volumen_cubierto × (forward_30d - spot_forward_base)
+    # forward_30d fue calculado sobre spot_forward_base — la diferencia es solo el diferencial de tasas.
+    # spread     = Σ volumen_cubierto × spread_banco
+    frac_cob = p.cobertura_pct / 100.0
+    _prima_fwd_mxn = sum(
+        pe.volumen_usd * frac_cob * (pe.forward_30d - pe.spot_forward_base) for pe in r.periodos
+    )
+    _spread_mxn = r.costo_total_banco_mxn  # ya escalado al nivel de cobertura real
+    _costo_real_proteccion_mxn = _prima_fwd_mxn + _spread_mxn
+    _vol_spot_cubierto_mxn = sum(
+        pe.volumen_usd * frac_cob * pe.spot_forward_base for pe in r.periodos
+    )
+    _costo_real_pct_vol = (
+        _costo_real_proteccion_mxn / _vol_spot_cubierto_mxn * 100
+        if _vol_spot_cubierto_mxn > 0 else 0.0
+    )
+
+    _anio_str = str(_ff.year) if _fi.year == _ff.year else f"{_fi.year}–{_ff.year}"
+
+    narrativo = (
+        f"Durante {_anio_str}, hubo <b>{_meses_prot}</b> de {r.total_meses} meses "
+        f"donde el tipo de cambio se movió en contra de su operación. "
+        f"En el peor mes (<b>{_peor_mes_obj.periodo if _peor_mes_obj else 'N/D'}</b>), "
+        f"habría perdido <b>${_peor_mes_mxn:,.0f} MXN</b> — "
+        f"<b>{_peor_mes_pct_margen:.1f}%</b> de su margen mensual. "
+        f"El costo de protección con forward es <b>{_costo_real_pct_vol:.2f}%</b> "
+        f"del volumen operado."
+    )
+    elementos.append(Paragraph(narrativo, estilos["cuerpo"]))
+    elementos.append(Spacer(1, 0.4 * cm))
+
+    # ------------------------------------------------------------------ #
+    # 6 KPIs — 2 filas de 3
+    # ------------------------------------------------------------------ #
+    # Costo de cobertura mensual promedio: prima forward + spread (ya calculados arriba)
+    _n = r.total_meses if r.total_meses > 0 else 1
+    _costo_real_mensual = _costo_real_proteccion_mxn / _n
+
+    # % del volumen mensual cubierto al spot (base correcta: solo la parte cubierta)
+    _vol_cubierto_spot_mensual_mxn = _vol_spot_cubierto_mxn / _n
+    _costo_real_pct_mensual = (
+        _costo_real_mensual / _vol_cubierto_spot_mensual_mxn * 100
+        if _vol_cubierto_spot_mensual_mxn > 0 else 0.0
+    )
+
+    # Volumen cubierto total en el período (USD): volumen * fracción cubierta * meses
+    _vol_cubierto_usd = sum(
+        pe.volumen_usd * (p.cobertura_pct / 100.0) for pe in r.periodos
+    )
+
+    # Mayor daño evitado en un mes (mejor mes = mayor protección)
+    _mayor_ahorro = _peor_mes_mxn  # ya calculado arriba
+
+    fila1 = [
+        _kpi_box(
+            f"${_costo_real_mensual:,.0f}",
+            "Costo de cobertura\npromedio mensual (MXN)",
+            es_costo=True,
+        ),
+        _kpi_box(
+            f"{_costo_real_pct_mensual:.2f}%",
+            "Costo de cobertura\n(% del volumen mensual)",
+            es_costo=True,
+        ),
+        _kpi_box(
+            f"{_meses_prot}",
+            "Meses donde el spot\nfue peor que el forward",
+            es_costo=False,
+        ),
     ]
-    fila_kpis = [
-        [_kpi_box(num, lbl, neg) for num, lbl, neg in kpis_fila1],
-        [_kpi_box(num, lbl, neg) for num, lbl, neg in kpis_fila2],
+    fila2 = [
+        _kpi_box(
+            f"{r.total_meses}",
+            "Meses analizados\nen el período",
+            es_costo=False,
+        ),
+        _kpi_box(
+            f"${_vol_cubierto_usd:,.0f}",
+            "Volumen cubierto\nen el período (USD)",
+            es_costo=False,
+        ),
+        _kpi_box(
+            f"${_mayor_ahorro:,.0f}" if _mayor_ahorro > 0 else "—",
+            "Mayor protección\nen un mes (MXN)",
+            es_costo=False,
+        ),
     ]
-    t_kpis = Table(fila_kpis, colWidths=[3.8 * cm] * 5,
-                   hAlign="CENTER", spaceBefore=6, spaceAfter=4)
+
+    t_kpis = Table(
+        [fila1, fila2],
+        colWidths=[5.2 * cm] * 3,
+        hAlign="CENTER",
+        spaceBefore=4,
+        spaceAfter=4,
+    )
     t_kpis.setStyle(TableStyle([
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 3),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
     ]))
     elementos.append(t_kpis)
-
-    # Mejor / peor mes
-    if r.mejor_mes and r.peor_mes:
-        elementos.append(Spacer(1, 0.5 * cm))
-        datos_extremos = [
-            ["", "Mes / Month", "Ahorro MXN / Savings MXN", "TC Spot", "TC Forward"],
-            [
-                Paragraph("<b>Mejor mes / Best month</b>", estilos["tabla_celda_left"]),
-                r.mejor_mes.periodo,
-                f"${r.mejor_mes.ahorro_mxn:,.2f}",
-                f"{r.mejor_mes.spot:.4f}",
-                f"{r.mejor_mes.forward_30d:.4f}",
-            ],
-            [
-                Paragraph("<b>Peor mes / Worst month</b>", estilos["tabla_celda_left"]),
-                r.peor_mes.periodo,
-                f"${r.peor_mes.ahorro_mxn:,.2f}",
-                f"{r.peor_mes.spot:.4f}",
-                f"{r.peor_mes.forward_30d:.4f}",
-            ],
-        ]
-        t_extremos = Table(datos_extremos,
-                           colWidths=[4.5 * cm, 2.5 * cm, 4 * cm, 2.5 * cm, 2.5 * cm])
-        t_extremos.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), AZUL),
-            ("TEXTCOLOR", (0, 0), (-1, 0), BLANCO),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 8),
-            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-            ("ALIGN", (0, 0), (0, -1), "LEFT"),
-            ("BACKGROUND", (0, 1), (-1, 1), VERDE_CLARO),
-            ("BACKGROUND", (0, 2), (-1, 2), AZUL_CLARO),
-            ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#d1d5db")),
-            ("TOPPADDING", (0, 0), (-1, -1), 5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ]))
-        elementos.append(t_extremos)
 
     return elementos
 
@@ -716,16 +729,16 @@ def _tabla_resumen_anual(resultado: ResultadoSimulacion, estilos: dict) -> list:
     elementos = []
     elementos.append(Spacer(1, 0.5 * cm))
     elementos.append(Paragraph(
-        "Desempeño por Año / Annual Performance",
+        "Desempeño por Año",
         estilos["sub_encabezado"],
     ))
     elementos.append(Spacer(1, 0.2 * cm))
 
     encabezados = [
-        Paragraph("<b>Año\nYear</b>", estilos["tabla_header"]),
-        Paragraph("<b>Tendencia FX\nFX Trend</b>", estilos["tabla_header"]),
-        Paragraph("<b>Ahorro / Costo\nSavings / Cost (MXN)</b>", estilos["tabla_header"]),
-        Paragraph("<b>% del Volumen\n% of Volume</b>", estilos["tabla_header"]),
+        Paragraph("<b>Año</b>", estilos["tabla_header"]),
+        Paragraph("<b>Tendencia FX</b>", estilos["tabla_header"]),
+        Paragraph("<b>Resultado vs Spot (MXN)</b>", estilos["tabla_header"]),
+        Paragraph("<b>% del Volumen</b>", estilos["tabla_header"]),
         Paragraph("<b>TC Spot\nProm.</b>", estilos["tabla_header"]),
         Paragraph("<b>TC Fwd\nProm.</b>", estilos["tabla_header"]),
     ]
@@ -735,10 +748,9 @@ def _tabla_resumen_anual(resultado: ResultadoSimulacion, estilos: dict) -> list:
         # Positivo → verde; negativo → gris (costo de seguro, no pérdida)
         _color_hex = "#2d8659" if ra.ahorro_total_mxn >= 0 else "#6b7280"
         signo = "+" if ra.ahorro_total_mxn >= 0 else ""
-        tendencia = f"{ra.tendencia_fx}\n{ra.tendencia_fx_en}"
         filas.append([
             Paragraph(f"<b>{ra.anio}</b>", estilos["tabla_celda"]),
-            Paragraph(tendencia, estilos["tabla_celda"]),
+            Paragraph(ra.tendencia_fx, estilos["tabla_celda"]),
             Paragraph(
                 f"<font color='{_color_hex}'>"
                 f"<b>{signo}${ra.ahorro_total_mxn:,.0f}</b></font>",
@@ -772,16 +784,11 @@ def _tabla_resumen_anual(resultado: ResultadoSimulacion, estilos: dict) -> list:
     elementos.append(t)
     elementos.append(Spacer(1, 0.3 * cm))
 
-    # Nota explicativa bilingüe
     nota = (
         "Nota: El forward incluye una prima por el diferencial de tasas de interés México-EE.UU. "
         "(TIIE vs SOFR), típicamente 0.3%-0.5% mensual. Para que la cobertura genere ahorro neto, "
         "la depreciación del peso debe superar esta prima. El valor principal de la cobertura no es "
-        "generar ahorro, sino eliminar la incertidumbre: fijar el tipo de cambio permite presupuestar con certeza. "
-        "/ <i>Note: The forward includes a premium from the Mexico-US interest rate differential "
-        "(TIIE vs SOFR), typically 0.3%-0.5% per month. For the hedge to generate net savings, "
-        "peso depreciation must exceed this premium. The primary value of hedging is not generating "
-        "savings, but eliminating uncertainty: locking in the exchange rate enables budget certainty.</i>"
+        "generar ahorro, sino eliminar la incertidumbre: fijar el tipo de cambio permite presupuestar con certeza."
     )
     elementos.append(Paragraph(nota, ParagraphStyle(
         "nota_anual", fontName="Helvetica", fontSize=7, textColor=GRIS,
@@ -791,10 +798,277 @@ def _tabla_resumen_anual(resultado: ResultadoSimulacion, estilos: dict) -> list:
     return elementos
 
 
+# ---------------------------------------------------------------------------
+# Sección: catálogo de estrategias (página 3)
+# ---------------------------------------------------------------------------
+
+def _catalogo_estrategias(resultado: ResultadoSimulacion, estilos: dict) -> list:
+    """
+    Genera la página 'Catálogo de Estrategias' con 3 tablas (Forward, Opciones,
+    Collar) × 4 niveles de cobertura (25 / 50 / 75 / 100 %), más pros/contras
+    debajo de cada tabla.
+
+    Costos de Forward: derivados de calcular_metricas_por_nivel() (datos reales).
+    Costos de Opciones / Collar: estimados analíticamente con una prima ATM
+    aproximada usando la volatilidad histórica implícita de los retornos spot
+    del período.
+    """
+    import math as _math
+
+    r = resultado
+    p = r.parametros
+    elementos: list = []
+
+    elementos.append(Paragraph("Catálogo de Estrategias", estilos["encabezado_seccion"]))
+    elementos.append(HRFlowable(width="100%", thickness=1.5, color=AZUL, spaceAfter=6))
+
+    intro_txt = (
+        "Los siguientes escenarios muestran el costo estimado de cada instrumento "
+        "a distintos niveles de cobertura, calculados con datos históricos del período analizado. "
+        "Use esta tabla como referencia para elegir el nivel de cobertura que mejor se adapte "
+        "a su perfil de riesgo."
+    )
+    elementos.append(Paragraph(intro_txt, estilos["cuerpo"]))
+    elementos.append(Spacer(1, 0.3 * cm))
+
+    # ------------------------------------------------------------------
+    # Calcular métricas forward por nivel (datos reales del backtesting)
+    # ------------------------------------------------------------------
+    metricas_fwd: list[MetricasNivelCobertura] = calcular_metricas_por_nivel(r)
+    n_meses = r.total_meses if r.total_meses > 0 else 1
+    vol_mensual_spot_mxn = r.costo_total_spot_mxn / n_meses  # promedio mensual spot
+
+    # ------------------------------------------------------------------
+    # Volatilidad histórica del período y prima GK para opciones/collar
+    # ------------------------------------------------------------------
+    from core.models.pricing import calcular_opcion_gk, get_tasas_actuales
+
+    spots = [pe.spot for pe in r.periodos if pe.spot > 0]
+    if len(spots) >= 2:
+        _retornos = [_math.log(spots[i] / spots[i - 1]) for i in range(1, len(spots))]
+        _vol_mensual_log = float(np.std(_retornos)) if len(_retornos) > 1 else 0.08
+    else:
+        _vol_mensual_log = 0.08  # fallback: ~8% mensual
+
+    # Vol anualizada para GK y para la nota al pie
+    _vol_anual = _vol_mensual_log * _math.sqrt(12)
+    _vol_anual_pct = _vol_anual * 100
+
+    spot_promedio = float(np.mean(spots)) if spots else 18.0
+
+    # Prima put ATM (30 días) con Garman-Kohlhagen usando tasas actuales de BD
+    _tasas_actuales = get_tasas_actuales()
+    _tiie = getattr(p, "tiie", None) or _tasas_actuales["tiie"]
+    _sofr = getattr(p, "sofr", None) or _tasas_actuales["sofr"]
+    try:
+        _gk_put_atm = calcular_opcion_gk(
+            spot=spot_promedio,
+            strike=spot_promedio,   # ATM
+            dias=30,
+            vol=_vol_anual,
+            tiie=_tiie,
+            sofr=_sofr,
+        )
+        _prima_put_por_usd = _gk_put_atm.put   # MXN/USD
+    except ValueError:
+        # Fallback a Bachelier si GK falla (vol o spot degenerado)
+        _prima_put_por_usd = _vol_mensual_log * 0.4 * spot_promedio
+
+    # Prima neta del collar: put ATM comprado − call OTM vendido (strike = spot × 1.03)
+    try:
+        _gk_call_otm = calcular_opcion_gk(
+            spot=spot_promedio,
+            strike=spot_promedio * 1.03,   # OTM ~3% sobre el spot
+            dias=30,
+            vol=_vol_anual,
+            tiie=_tiie,
+            sofr=_sofr,
+        )
+        _prima_collar_neta_por_usd = _prima_put_por_usd - _gk_call_otm.call  # put − ingreso del call
+    except ValueError:
+        _prima_collar_neta_por_usd = _prima_put_por_usd * 0.50  # fallback: 50% subsidio
+
+    # ------------------------------------------------------------------
+    # Helper: construir tabla de una estrategia
+    # ------------------------------------------------------------------
+    _NIVELES = [25.0, 50.0, 75.0, 100.0]
+
+    estilo_th = estilos["tabla_header"]
+    estilo_tc = estilos["tabla_celda"]
+
+    def _tabla_estrategia(
+        titulo: str,
+        filas_datos: list[list],
+    ) -> Table:
+        encabezados = [
+            Paragraph("<b>Nivel de cobertura</b>", estilo_th),
+            Paragraph("<b>Costo mensual (MXN)</b>", estilo_th),
+            Paragraph("<b>% del volumen operado</b>", estilo_th),
+            Paragraph("<b>Protección máxima (MXN)</b>", estilo_th),
+        ]
+        filas = [encabezados] + filas_datos
+        col_widths = [3.8 * cm, 4.6 * cm, 4.6 * cm, 4.6 * cm]
+        t = Table(filas, colWidths=col_widths, repeatRows=1)
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), AZUL),
+            ("TEXTCOLOR", (0, 0), (-1, 0), BLANCO),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#d1d5db")),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [BLANCO, GRIS_CLARO]),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        return t
+
+    def _pros_contras(pro: str, contra: str) -> Table:
+        estilo_pc = ParagraphStyle(
+            "pros_contras", fontName="Helvetica", fontSize=8,
+            textColor=colors.HexColor("#374151"), leading=12,
+        )
+        t = Table(
+            [[Paragraph(pro, estilo_pc)],
+             [Paragraph(contra, estilo_pc)]],
+            colWidths=[17.6 * cm],
+        )
+        t.setStyle(TableStyle([
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ]))
+        return t
+
+    # ------------------------------------------------------------------
+    # Tabla 1: FORWARD
+    # ------------------------------------------------------------------
+    elementos.append(Paragraph("Forward", estilos["sub_encabezado"]))
+    elementos.append(Spacer(1, 0.15 * cm))
+
+    fwd_by_nivel = {m.cobertura_pct: m for m in metricas_fwd}
+    filas_fwd = []
+    for nivel in _NIVELES:
+        m = fwd_by_nivel.get(nivel)
+        if m is None:
+            filas_fwd.append([
+                Paragraph(f"<b>{nivel:.0f}%</b>", estilo_tc),
+                Paragraph("—", estilo_tc),
+                Paragraph("—", estilo_tc),
+                Paragraph("—", estilo_tc),
+            ])
+            continue
+        # Costo mensual = prima TIIE/SOFR pura (fwd - spot_base) + spread, escalados al nivel
+        frac = nivel / 100.0
+        _prima_nivel = sum(
+            pe.volumen_usd * frac * (pe.forward_30d - pe.spot_forward_base) for pe in r.periodos
+        )
+        _spread_nivel = sum(pe.volumen_usd * frac * p.spread_banco for pe in r.periodos)
+        _costo_fwd_mens = (_prima_nivel + _spread_nivel) / n_meses
+        # Denominador = volumen TOTAL operado (no solo el cubierto) para que el % escale con el nivel
+        _pct_vol = (_costo_fwd_mens / vol_mensual_spot_mxn * 100) if vol_mensual_spot_mxn > 0 else 0.0
+        _prot_max = m.perdida_maxima_evitada_mxn
+        filas_fwd.append([
+            Paragraph(f"<b>{nivel:.0f}%</b>", estilo_tc),
+            Paragraph(f"${_costo_fwd_mens:,.0f}", estilo_tc),
+            Paragraph(f"{_pct_vol:.2f}%", estilo_tc),
+            Paragraph(f"${_prot_max:,.0f}", estilo_tc),
+        ])
+
+    elementos.append(_tabla_estrategia("Forward", filas_fwd))
+    elementos.append(Spacer(1, 0.2 * cm))
+    elementos.append(_pros_contras(
+        "✅  Certeza total — fijas tu tipo de cambio, eliminas sorpresas.",
+        "❌  Sin flexibilidad — si el peso se aprecia, no te beneficias.",
+    ))
+    elementos.append(Spacer(1, 0.45 * cm))
+
+    # ------------------------------------------------------------------
+    # Tabla 2: OPCIONES PUT
+    # ------------------------------------------------------------------
+    elementos.append(Paragraph("Opciones Put", estilos["sub_encabezado"]))
+    elementos.append(Spacer(1, 0.15 * cm))
+
+    vol_usd_mens = float(np.mean([pe.volumen_usd for pe in r.periodos])) if r.periodos else p.volumen_mensual_usd
+
+    filas_op = []
+    for nivel in _NIVELES:
+        frac = nivel / 100.0
+        m = fwd_by_nivel.get(nivel)
+        # Prima GK (MXN/USD) + spread banco, escalados al nivel de cobertura
+        _costo_op_mens = (_prima_put_por_usd + p.spread_banco) * vol_usd_mens * frac
+        _pct_vol = (_costo_op_mens / vol_mensual_spot_mxn * 100) if vol_mensual_spot_mxn > 0 else 0.0
+        _prot_max = m.perdida_maxima_evitada_mxn if m else 0.0
+        filas_op.append([
+            Paragraph(f"<b>{nivel:.0f}%</b>", estilo_tc),
+            Paragraph(f"${_costo_op_mens:,.0f}", estilo_tc),
+            Paragraph(f"{_pct_vol:.2f}%", estilo_tc),
+            Paragraph(f"${_prot_max:,.0f}", estilo_tc),
+        ])
+
+    elementos.append(_tabla_estrategia("Opciones Put", filas_op))
+    elementos.append(Spacer(1, 0.2 * cm))
+    elementos.append(_pros_contras(
+        "✅  Protección + flexibilidad — si el peso se aprecia, ganas.",
+        "❌  Prima más alta que el forward.",
+    ))
+    elementos.append(Spacer(1, 0.45 * cm))
+
+    # ------------------------------------------------------------------
+    # Tabla 3: COLLAR
+    # ------------------------------------------------------------------
+    elementos.append(Paragraph("Collar", estilos["sub_encabezado"]))
+    elementos.append(Spacer(1, 0.15 * cm))
+
+    # Collar: prima neta = put ATM comprado − call OTM vendido (calculado con GK arriba)
+    filas_col = []
+    for nivel in _NIVELES:
+        frac = nivel / 100.0
+        m = fwd_by_nivel.get(nivel)
+        # Prima neta GK (MXN/USD) + spread banco, escalados al nivel de cobertura
+        _costo_col_mens = (_prima_collar_neta_por_usd + p.spread_banco) * vol_usd_mens * frac
+        _pct_vol = (_costo_col_mens / vol_mensual_spot_mxn * 100) if vol_mensual_spot_mxn > 0 else 0.0
+        # Protección máxima collar = misma que put (pero ganancia limitada por el call vendido)
+        _prot_max = m.perdida_maxima_evitada_mxn if m else 0.0
+        filas_col.append([
+            Paragraph(f"<b>{nivel:.0f}%</b>", estilo_tc),
+            Paragraph(f"${_costo_col_mens:,.0f}", estilo_tc),
+            Paragraph(f"{_pct_vol:.2f}%", estilo_tc),
+            Paragraph(f"${_prot_max:,.0f}", estilo_tc),
+        ])
+
+    elementos.append(_tabla_estrategia("Collar", filas_col))
+    elementos.append(Spacer(1, 0.2 * cm))
+    elementos.append(_pros_contras(
+        "✅  Menor costo — la prima se subsidia con el techo.",
+        "❌  Limita tu ganancia si el peso se aprecia mucho.",
+    ))
+    elementos.append(Spacer(1, 0.4 * cm))
+
+    # ------------------------------------------------------------------
+    # Nota al pie
+    # ------------------------------------------------------------------
+    _nota_pie = (
+        f"Costos incluyen el diferencial de tasas TIIE/SOFR y spread bancario estimado de "
+        f"${p.spread_banco:.2f}/USD. Opciones y collar estimados con volatilidad histórica "
+        f"de {_vol_anual_pct:.1f}% anual. Los costos reales dependen de las condiciones de "
+        "mercado al momento de contratación."
+    )
+    elementos.append(Paragraph(_nota_pie, ParagraphStyle(
+        "nota_cat", fontName="Helvetica-Oblique", fontSize=7,
+        textColor=GRIS, alignment=TA_JUSTIFY, leading=10,
+    )))
+
+    return elementos
+
+
 def _tabla_mensual(resultado: ResultadoSimulacion, estilos: dict) -> list:
     """Genera la tabla detallada mes a mes."""
     elementos = []
-    elementos.append(Paragraph("Análisis Mensual / Monthly Breakdown",
+    elementos.append(Paragraph("Análisis Mensual",
                                estilos["encabezado_seccion"]))
     elementos.append(HRFlowable(width="100%", thickness=1.5, color=AZUL,
                                 spaceAfter=6))
@@ -904,7 +1178,7 @@ def _tabla_mensual(resultado: ResultadoSimulacion, estilos: dict) -> list:
 def _seccion_recomendacion(resultado: ResultadoSimulacion, estilos: dict) -> list:
     """Genera la sección de recomendación final."""
     elementos = []
-    elementos.append(Paragraph("Recomendación / Recommendation",
+    elementos.append(Paragraph("Recomendación y Próximos Pasos",
                                estilos["encabezado_seccion"]))
     elementos.append(HRFlowable(width="100%", thickness=1.5, color=VERDE,
                                 spaceAfter=8))
@@ -912,53 +1186,42 @@ def _seccion_recomendacion(resultado: ResultadoSimulacion, estilos: dict) -> lis
     r = resultado
     p = r.parametros
 
-    # Caja de recomendación en verde claro
+    # Período en formato legible
+    _anio_str = (
+        str(r.fecha_fin.year) if r.fecha_inicio.year == r.fecha_fin.year
+        else f"{r.fecha_inicio.year}–{r.fecha_fin.year}"
+    )
+    _n = r.total_meses
+
+    # Caja de recomendación
     if r.ahorro_total_mxn > 0:
-        texto_rec_es = (
-            f"Con base en el backtesting de los últimos {r.total_meses} meses, "
-            f"la implementación de una estrategia de cobertura forward a 30 días "
-            f"habría generado un ahorro acumulado de <b>${r.ahorro_total_mxn:,.0f} MXN</b> "
-            f"(<b>{r.ahorro_total_porcentaje:.2f}%</b> del costo total sin cobertura). "
-            f"La cobertura fue efectiva en el <b>{r.porcentaje_meses_con_ahorro:.0f}%</b> "
-            f"de los meses analizados. "
+        texto_rec = (
+            f"El análisis de {_anio_str} muestra que una cobertura forward a 30 días "
+            f"habría generado un resultado positivo de <b>${r.ahorro_total_mxn:,.0f} MXN</b> "
+            f"(<b>{r.ahorro_total_porcentaje:.2f}%</b> del costo total sin cobertura), "
+            f"siendo efectiva en el <b>{r.porcentaje_meses_con_ahorro:.0f}%</b> "
+            f"de los {_n} meses analizados. "
             f"<b>HedgePoint MX recomienda implementar coberturas forward mensuales</b> "
             f"para proteger el margen de utilidad ante la volatilidad cambiaria."
-        )
-        texto_rec_en = (
-            f"Based on the {r.total_meses}-month backtesting, a 30-day forward hedging "
-            f"strategy would have saved <b>${r.ahorro_total_mxn:,.0f} MXN</b> "
-            f"(<b>{r.ahorro_total_porcentaje:.2f}%</b> of the unhedged cost), "
-            f"outperforming the spot market in <b>{r.porcentaje_meses_con_ahorro:.0f}%</b> "
-            f"of months. <b>HedgePoint MX recommends implementing monthly forward hedges</b> "
-            f"to protect profit margins against FX volatility."
         )
         bg_color = VERDE_CLARO
         border_color = VERDE
     else:
-        texto_rec_es = (
-            f"Durante el período analizado, el tipo de cambio forward fue marginalmente "
-            f"superior al spot en promedio, lo que indica un mercado con condiciones "
-            f"favorables para compradores spot. Sin embargo, la cobertura ofrece "
-            f"<b>certeza presupuestal y protección ante escenarios adversos</b>. "
-            f"<b>HedgePoint MX recomienda evaluar una estrategia combinada</b> "
-            f"(forwards + opciones) para equilibrar costo y protección."
-        )
-        texto_rec_en = (
-            f"During the analyzed period, forward rates were marginally above spot on average. "
-            f"However, hedging provides <b>budget certainty and downside protection</b>. "
-            f"<b>HedgePoint MX recommends a combined strategy</b> "
-            f"(forwards + options) to balance cost and protection."
+        texto_rec = (
+            f"Durante {_anio_str}, el peso se apreció en promedio, lo que hace que el "
+            f"costo de la cobertura no se tradujera en ahorro neto. Sin embargo, "
+            f"en <b>{sum(1 for pe in r.periodos if pe.ahorro_mxn > 0)}</b> de {_n} meses "
+            f"la cobertura habría protegido el margen. La cobertura ofrece "
+            f"<b>certeza presupuestal y protección ante escenarios adversos</b>, "
+            f"independientemente de la dirección del mercado. "
+            f"<b>HedgePoint MX recomienda evaluar una estrategia de cobertura forward</b> "
+            f"para eliminar la incertidumbre cambiaria."
         )
         bg_color = colors.HexColor("#fff8e1")
         border_color = colors.HexColor("#f59e0b")
 
-    # Tabla de caja de recomendación
     caja = Table(
-        [[Paragraph(texto_rec_es, estilos["recomendacion"])],
-         [Paragraph(texto_rec_en, ParagraphStyle(
-             "rec_en", fontName="Helvetica-Oblique", fontSize=8.5,
-             textColor=GRIS, alignment=TA_JUSTIFY, leading=12,
-         ))]],
+        [[Paragraph(texto_rec, estilos["recomendacion"])]],
         colWidths=[16 * cm],
     )
     caja.setStyle(TableStyle([
@@ -973,8 +1236,7 @@ def _seccion_recomendacion(resultado: ResultadoSimulacion, estilos: dict) -> lis
     elementos.append(Spacer(1, 0.6 * cm))
 
     # Próximos pasos
-    elementos.append(Paragraph("Próximos Pasos / Next Steps",
-                               estilos["sub_encabezado"]))
+    elementos.append(Paragraph("Próximos Pasos", estilos["sub_encabezado"]))
     pasos = [
         "1. Agendar reunión de diagnóstico de exposición cambiaria (sin costo).",
         "2. Definir estrategia de cobertura personalizada según perfil de riesgo.",
@@ -986,7 +1248,7 @@ def _seccion_recomendacion(resultado: ResultadoSimulacion, estilos: dict) -> lis
 
     elementos.append(Spacer(1, 0.6 * cm))
 
-    # Disclaimers
+    # Disclaimer legal
     disclaimer = (
         "* Este reporte es un análisis histórico con fines ilustrativos. Los resultados "
         "pasados no garantizan rendimientos futuros. Los precios forward son teóricos y "
@@ -994,15 +1256,7 @@ def _seccion_recomendacion(resultado: ResultadoSimulacion, estilos: dict) -> lis
         "HedgePoint MX no es una institución financiera regulada; para contratos "
         "financieros formales, contacta a un banco o casa de bolsa autorizada."
     )
-    disclaimer_en = (
-        "* This report is a historical analysis for illustrative purposes only. Past "
-        "performance does not guarantee future results. Forward prices are theoretical, "
-        "calculated using covered interest rate parity (TIIE/SOFR). HedgePoint MX is not "
-        "a regulated financial institution; for formal financial contracts, contact an "
-        "authorized bank or brokerage."
-    )
     elementos.append(Paragraph(disclaimer, estilos["pie"]))
-    elementos.append(Paragraph(disclaimer_en, estilos["pie"]))
 
     return elementos
 
@@ -1013,127 +1267,119 @@ def _seccion_recomendacion(resultado: ResultadoSimulacion, estilos: dict) -> lis
 
 def _seccion_desglose_costos(resultado: ResultadoSimulacion, estilos: dict) -> list:
     """
-    Genera la sección de desglose de costos transaccionales.
-    Solo se llama si hay costos de spread, markup o fee configurados.
+    Desglose de costos de la cobertura en términos MENSUALES.
+    Columnas: Concepto | Costo por USD | Costo mensual (MXN).
+    Se omite el forward teórico (es el subyacente, no un costo adicional).
     """
     r = resultado
     p = r.parametros
     elementos = []
 
     elementos.append(Paragraph(
-        "Desglose de Costos / Cost Breakdown",
+        "Desglose de Costos de la Cobertura",
         estilos["encabezado_seccion"],
     ))
     elementos.append(HRFlowable(width="100%", thickness=1.5, color=AZUL, spaceAfter=6))
 
-    intro_es = (
-        "La siguiente tabla muestra el desglose exacto de cada peso pagado en la "
-        "estrategia de cobertura. <b>HedgePoint MX cobra de forma transparente.</b> "
-        "Los bancos incluyen su spread en el precio del forward sin desglosarlo, "
-        "lo que hace imposible comparar costos reales sin este análisis."
+    intro = (
+        "Los bancos incluyen su spread en el precio del forward sin desglosarlo. "
+        "<b>HedgePoint MX cobra de forma transparente.</b>"
     )
-    intro_en = (
-        "The table below shows the exact breakdown of every peso paid in the hedging "
-        "strategy. <b>HedgePoint MX charges transparently.</b> Banks embed their spread "
-        "in the forward price without disclosure, making real cost comparison impossible "
-        "without this analysis."
-    )
-    elementos.append(Paragraph(intro_es, estilos["cuerpo"]))
-    elementos.append(Paragraph(intro_en, ParagraphStyle(
-        "cb_en", fontName="Helvetica-Oblique", fontSize=8.5,
-        textColor=GRIS, alignment=TA_JUSTIFY, leading=12, spaceAfter=8,
-    )))
+    elementos.append(Paragraph(intro, estilos["cuerpo"]))
+    elementos.append(Spacer(1, 0.3 * cm))
 
-    costo_total = r.costo_total_forward_mxn
-    volumen_total_usd = sum(p2.volumen_usd for p2 in r.periodos)
+    n_meses = r.total_meses if r.total_meses > 0 else 1
+    frac_cob = p.cobertura_pct / 100.0
+    vol_mensual_usd = sum(pe.volumen_usd for pe in r.periodos) / n_meses
 
-    def _pct(val: float) -> str:
-        return f"{val / costo_total * 100:.1f}%" if costo_total else "—"
+    # Prima TIIE/SOFR mensual promedio (misma fórmula que _resumen_ejecutivo, sin spread)
+    prima_tiie_sofr_mxn = sum(
+        pe.volumen_usd * frac_cob * (pe.forward_30d - pe.spot_forward_base) for pe in r.periodos
+    ) / n_meses
+    vol_cubierto_usd_mens = vol_mensual_usd * frac_cob
+    prima_tiie_sofr_por_usd = (prima_tiie_sofr_mxn / vol_cubierto_usd_mens) if vol_cubierto_usd_mens > 0 else 0.0
+
+    # Costo mensual promedio de cada componente
+    spread_mens_mxn = r.costo_total_banco_mxn / n_meses
+    markup_mens_mxn = r.costo_total_markup_hp_mxn / n_meses
+    fee_mens_mxn = r.costo_total_fee_hp_mxn / n_meses
+
+    # Costo por USD (fee prorrateado = fee_mensual / volumen_usd_cubierto_mes)
+    spread_por_usd = p.spread_banco
+    markup_por_usd = p.markup_hedgepoint
+    fee_por_usd = (p.fee_mensual / vol_cubierto_usd_mens) if vol_cubierto_usd_mens > 0 else 0.0
+
+    total_por_usd = prima_tiie_sofr_por_usd + spread_por_usd + markup_por_usd + fee_por_usd
+    total_mens_mxn = prima_tiie_sofr_mxn + spread_mens_mxn + markup_mens_mxn + fee_mens_mxn
+
+    estilo_th = estilos["tabla_header"]
+    estilo_tc = estilos["tabla_celda"]
+    estilo_tl = estilos["tabla_celda_left"]
 
     filas = [
         [
-            Paragraph("<b>Concepto / Concept</b>", estilos["tabla_header"]),
-            Paragraph("<b>Costo unitario\nUnit cost</b>", estilos["tabla_header"]),
-            Paragraph("<b>Costo total periodo\nTotal period cost</b>", estilos["tabla_header"]),
-            Paragraph("<b>% del total\n% of total</b>", estilos["tabla_header"]),
+            Paragraph("<b>Concepto</b>", estilo_th),
+            Paragraph("<b>Costo por USD</b>", estilo_th),
+            Paragraph("<b>Costo mensual (MXN)</b>", estilo_th),
         ],
         [
-            "Forward teórico (TIIE/SOFR)\nTheoretical Forward (TIIE/SOFR)",
-            f"TC forward prom.\nAvg fwd rate",
-            f"${r.costo_total_forward_teorico_mxn:,.0f} MXN",
-            _pct(r.costo_total_forward_teorico_mxn),
+            Paragraph("Prima TIIE/SOFR (diferencial de tasas)", estilo_tl),
+            Paragraph(f"${prima_tiie_sofr_por_usd:.3f}", estilo_tc),
+            Paragraph(f"${prima_tiie_sofr_mxn:,.0f}", estilo_tc),
         ],
         [
-            "Spread banco / Bank spread",
-            f"${p.spread_banco:.2f} MXN/USD",
-            f"${r.costo_total_banco_mxn:,.0f} MXN",
-            _pct(r.costo_total_banco_mxn),
-        ],
-        [
-            "Markup HedgePoint",
-            f"${p.markup_hedgepoint:.2f} MXN/USD",
-            f"${r.costo_total_markup_hp_mxn:,.0f} MXN",
-            _pct(r.costo_total_markup_hp_mxn),
-        ],
-        [
-            "Fee consultoría HedgePoint\nHedgePoint consulting fee",
-            f"${p.fee_mensual:,.0f} MXN/mes",
-            f"${r.costo_total_fee_hp_mxn:,.0f} MXN",
-            _pct(r.costo_total_fee_hp_mxn),
-        ],
-        [
-            Paragraph("<b>TOTAL</b>", estilos["tabla_celda"]),
-            "",
-            Paragraph(f"<b>${costo_total:,.0f} MXN</b>", estilos["tabla_celda"]),
-            Paragraph("<b>100.0%</b>", estilos["tabla_celda"]),
+            Paragraph("Spread banco", estilo_tl),
+            Paragraph(f"${spread_por_usd:.3f}", estilo_tc),
+            Paragraph(f"${spread_mens_mxn:,.0f}", estilo_tc),
         ],
     ]
+    if markup_por_usd > 0:
+        filas.append([
+            Paragraph("Markup HedgePoint", estilo_tl),
+            Paragraph(f"${markup_por_usd:.3f}", estilo_tc),
+            Paragraph(f"${markup_mens_mxn:,.0f}", estilo_tc),
+        ])
+    filas.append([
+        Paragraph("Fee HedgePoint (prorrateado)", estilo_tl),
+        Paragraph(f"${fee_por_usd:.3f}", estilo_tc),
+        Paragraph(f"${fee_mens_mxn:,.0f}", estilo_tc),
+    ])
+    filas.append([
+        Paragraph("<b>TOTAL costo de cobertura</b>", estilo_tl),
+        Paragraph(f"<b>${total_por_usd:.3f}</b>", estilo_tc),
+        Paragraph(f"<b>${total_mens_mxn:,.0f}</b>", estilo_tc),
+    ])
 
-    col_widths = [6.5 * cm, 3.5 * cm, 4.5 * cm, 2.5 * cm]
+    # Índices de filas para colores (varían según si markup está presente)
+    _idx_spread = 2   # siempre en posición 2
+    _idx_fee = 3 if markup_por_usd <= 0 else 4
+    col_widths = [8.0 * cm, 4.0 * cm, 5.0 * cm]
     t = Table(filas, colWidths=col_widths)
-    t.setStyle(TableStyle([
+    _estilos_tabla = [
         ("BACKGROUND", (0, 0), (-1, 0), AZUL),
         ("TEXTCOLOR", (0, 0), (-1, 0), BLANCO),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("FONTSIZE", (0, 0), (-1, -1), 8.5),
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
         ("ALIGN", (0, 0), (0, -1), "LEFT"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#d1d5db")),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -2), [BLANCO, GRIS_CLARO]),
-        # Fila forward teórico en azul muy claro (no es costo HP ni banco)
-        ("BACKGROUND", (0, 1), (-1, 1), AZUL_CLARO),
-        # Filas banco y HP con tono diferenciador
-        ("BACKGROUND", (0, 2), (-1, 2), colors.HexColor("#fff3cd")),  # banco — amarillo
-        ("BACKGROUND", (0, 3), (-1, 4), VERDE_CLARO),                 # HP — verde
-        # Totales
+        ("BACKGROUND", (0, 1), (-1, 1), colors.HexColor("#e8f4f8")),          # prima TIIE/SOFR — azul claro
+        ("BACKGROUND", (0, _idx_spread), (-1, _idx_spread), colors.HexColor("#fff3cd")),  # spread banco — amarillo
+        ("BACKGROUND", (0, _idx_fee), (-1, _idx_fee), VERDE_CLARO),           # fee HP — verde
         ("BACKGROUND", (0, -1), (-1, -1), AZUL_CLARO),
         ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
         ("LINEABOVE", (0, -1), (-1, -1), 1.0, AZUL),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-    ]))
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+    ]
+    if markup_por_usd > 0:
+        _estilos_tabla.append(("BACKGROUND", (0, 4), (-1, 4), VERDE_CLARO))  # markup HP — verde
+    t.setStyle(TableStyle(_estilos_tabla))
     elementos.append(t)
-
-    # Nota de transparencia
-    nota = (
-        "† El costo total de HedgePoint MX (markup + fee) fue "
-        f"<b>${r.costo_total_hedgepoint_mxn:,.0f} MXN</b> en el período "
-        f"({_pct(r.costo_total_hedgepoint_mxn)} del costo total con cobertura). "
-        "El costo del spread bancario fue "
-        f"<b>${r.costo_total_banco_mxn:,.0f} MXN</b> "
-        f"({_pct(r.costo_total_banco_mxn)}), normalmente invisible en el precio forward del banco. "
-        "† HedgePoint MX total cost (markup + fee) was "
-        f"<b>${r.costo_total_hedgepoint_mxn:,.0f} MXN</b> "
-        f"({_pct(r.costo_total_hedgepoint_mxn)} of total hedged cost). "
-        "Bank spread cost was "
-        f"<b>${r.costo_total_banco_mxn:,.0f} MXN</b> "
-        f"({_pct(r.costo_total_banco_mxn)}), typically hidden inside the bank's forward quote."
-    )
     elementos.append(Spacer(1, 0.3 * cm))
-    elementos.append(Paragraph(nota, estilos["pie"]))
 
     return elementos
 
@@ -1187,7 +1433,7 @@ def _grafica_comparativa_plazos(multi: ResultadoMultiPlazo) -> Image:
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"${v:.0f}k"))
     ax.set_ylabel("Ahorro mensual (miles MXN)", fontsize=10, color="#374151")
     ax.set_title(
-        "Ahorro mensual por plazo de cobertura / Monthly Savings by Hedging Tenor",
+        "Ahorro mensual por plazo de cobertura",
         fontsize=12, fontweight="bold", color="#1a365d",
     )
     ax.legend(fontsize=8, framealpha=0.9)
@@ -1205,32 +1451,24 @@ def _seccion_comparativa_plazos(multi: ResultadoMultiPlazo, estilos: dict) -> li
     """
     elementos = []
     elementos.append(Paragraph(
-        "Comparativa de Plazos / Tenor Comparison",
+        "Comparativa de Plazos",
         estilos["encabezado_seccion"],
     ))
     elementos.append(HRFlowable(width="100%", thickness=1.5, color=AZUL, spaceAfter=6))
 
-    intro_es = (
+    elementos.append(Paragraph(
         "Comparativa del desempeño histórico de coberturas forward a 30, 60 y 90 días "
-        "sobre el mismo período y volumen de compra."
-    )
-    intro_en = (
-        "Historical performance comparison of 30-, 60-, and 90-day forward hedges "
-        "over the same period and purchase volume."
-    )
-    elementos.append(Paragraph(intro_es, estilos["cuerpo"]))
-    elementos.append(Paragraph(intro_en, ParagraphStyle(
-        "cp_en", fontName="Helvetica-Oblique", fontSize=8.5,
-        textColor=GRIS, alignment=TA_JUSTIFY, leading=12, spaceAfter=8,
-    )))
+        "sobre el mismo período y volumen de compra.",
+        estilos["cuerpo"],
+    ))
 
     # --- Tabla comparativa ---
     mejor = multi.mejor_plazo
     encabezados = [
-        Paragraph("<b>Métrica / Metric</b>", estilos["tabla_header"]),
-        Paragraph("<b>30 días\n30-day</b>", estilos["tabla_header"]),
-        Paragraph("<b>60 días\n60-day</b>", estilos["tabla_header"]),
-        Paragraph("<b>90 días\n90-day</b>", estilos["tabla_header"]),
+        Paragraph("<b>Métrica</b>", estilos["tabla_header"]),
+        Paragraph("<b>30 días</b>", estilos["tabla_header"]),
+        Paragraph("<b>60 días</b>", estilos["tabla_header"]),
+        Paragraph("<b>90 días</b>", estilos["tabla_header"]),
     ]
     filas_comp = [encabezados]
 
@@ -1246,24 +1484,24 @@ def _seccion_comparativa_plazos(multi: ResultadoMultiPlazo, estilos: dict) -> li
         return f"{v:.1f}%"
 
     filas_comp += [
-        _fila("Ahorro / costo total\nTotal savings / cost",
+        _fila("Resultado total vs spot",
               [_fmt_mxn(r.ahorro_total_mxn) for r in resultados_ord]),
-        _fila("Ahorro promedio mensual\nAvg monthly savings",
+        _fila("Resultado promedio mensual",
               [_fmt_mxn(r.ahorro_promedio_mensual_mxn) for r in resultados_ord]),
-        _fila("% meses con ahorro\n% months with savings",
+        _fila("% meses con resultado positivo",
               [_fmt_pct(r.porcentaje_meses_con_ahorro) for r in resultados_ord]),
-        _fila("Desv. estándar mensual\nMonthly std deviation",
+        _fila("Desv. estándar mensual",
               [_fmt_mxn(float(np.std([p.ahorro_mxn for p in r.periodos])))
                for r in resultados_ord]),
-        _fila("Mejor mes / Best month",
+        _fila("Mejor mes",
               [f"{r.mejor_mes.periodo}\n{_fmt_mxn(r.mejor_mes.ahorro_mxn)}"
                if r.mejor_mes else "—" for r in resultados_ord]),
-        _fila("Peor mes / Worst month",
+        _fila("Peor mes",
               [f"{r.peor_mes.periodo}\n{_fmt_mxn(r.peor_mes.ahorro_mxn)}"
                if r.peor_mes else "—" for r in resultados_ord]),
-        _fila("Costo total HedgePoint\nTotal HedgePoint cost",
+        _fila("Costo total HedgePoint",
               [_fmt_mxn(r.costo_total_hedgepoint_mxn) for r in resultados_ord]),
-        _fila("Costo total banco\nTotal bank cost",
+        _fila("Costo total banco (spread)",
               [_fmt_mxn(r.costo_total_banco_mxn) for r in resultados_ord]),
     ]
 
@@ -1305,7 +1543,7 @@ def _seccion_comparativa_plazos(multi: ResultadoMultiPlazo, estilos: dict) -> li
 
     # --- Recomendación automática de plazo ---
     elementos.append(Paragraph(
-        "Recomendación de Plazo / Tenor Recommendation",
+        "Recomendación de Plazo",
         estilos["sub_encabezado"],
     ))
 
@@ -1330,7 +1568,6 @@ def _seccion_comparativa_plazos(multi: ResultadoMultiPlazo, estilos: dict) -> li
     todos_negativos = all(r.ahorro_total_mxn < 0 for r in resultados_ord)
 
     if todos_negativos:
-        # Plazo óptimo = menor costo adicional (ahorro menos negativo)
         costo_adicional = {r.parametros.plazo_forward_dias: abs(r.ahorro_total_mxn)
                            for r in resultados_ord}
         plazo_menor_costo = min(costo_adicional, key=costo_adicional.get)
@@ -1338,7 +1575,7 @@ def _seccion_comparativa_plazos(multi: ResultadoMultiPlazo, estilos: dict) -> li
             r for r in resultados_ord
             if r.parametros.plazo_forward_dias == plazo_menor_costo
         )
-        rec_es = (
+        rec = (
             f"En el período analizado, el peso se apreció sostenidamente frente al dólar, "
             f"por lo que <b>ningún plazo de cobertura generó ahorro neto</b>. "
             f"Sin embargo, el forward a <b>{plazo_menor_costo} días</b> fue el de "
@@ -1348,47 +1585,24 @@ def _seccion_comparativa_plazos(multi: ResultadoMultiPlazo, estilos: dict) -> li
             f"En períodos de depreciación cambiaria — que históricamente han sido "
             f"frecuentes — la cobertura habría generado ahorros significativos."
         )
-        rec_en = (
-            f"During the analyzed period, the peso appreciated steadily against the dollar, "
-            f"so <b>no forward tenor produced net savings</b>. "
-            f"However, the <b>{plazo_menor_costo}-day forward</b> carried the lowest additional "
-            f"cost (<b>${abs(mejor_en_negativo.ahorro_total_mxn):,.0f} MXN</b>) and the lowest "
-            f"monthly volatility, making it the preferred option if hedging is desired. "
-            f"During periods of peso depreciation — historically frequent — "
-            f"hedging would have generated significant savings."
-        )
         bg_color = colors.HexColor("#fff8e1")
         border_color = colors.HexColor("#f59e0b")
     else:
-        rec_es = (
-            f"Con base en tres criterios — <b>mayor ahorro neto</b> ({ganador_ahorro}d), "
+        rec = (
+            f"Con base en tres criterios — <b>mayor resultado neto</b> ({ganador_ahorro}d), "
             f"<b>menor volatilidad mensual</b> ({ganador_vol}d) y "
             f"<b>mayor porcentaje de meses positivos</b> ({ganador_positivo}d) — "
             f"el plazo recomendado es <b>{plazo_rec} días</b>, "
             f"que cumple {criterios_a_favor} de 3 criterios. "
-            f"Ahorro total: <b>${mejor.ahorro_total_mxn:,.0f} MXN</b>, "
+            f"Resultado total: <b>${mejor.ahorro_total_mxn:,.0f} MXN</b>, "
             f"promedio mensual: <b>${mejor.ahorro_promedio_mensual_mxn:,.0f} MXN</b>, "
-            f"en {mejor.porcentaje_meses_con_ahorro:.0f}% de los meses."
-        )
-        rec_en = (
-            f"Based on three criteria — <b>highest net savings</b> ({ganador_ahorro}d), "
-            f"<b>lowest monthly volatility</b> ({ganador_vol}d), and "
-            f"<b>highest share of positive months</b> ({ganador_positivo}d) — "
-            f"the recommended tenor is <b>{plazo_rec} days</b>, "
-            f"satisfying {criterios_a_favor} of 3 criteria. "
-            f"Total savings: <b>${mejor.ahorro_total_mxn:,.0f} MXN</b>, "
-            f"avg monthly: <b>${mejor.ahorro_promedio_mensual_mxn:,.0f} MXN</b>, "
-            f"positive in {mejor.porcentaje_meses_con_ahorro:.0f}% of months."
+            f"positivo en {mejor.porcentaje_meses_con_ahorro:.0f}% de los meses."
         )
         bg_color = VERDE_CLARO
         border_color = VERDE
 
     caja_rec = Table(
-        [[Paragraph(rec_es, estilos["recomendacion"])],
-         [Paragraph(rec_en, ParagraphStyle(
-             "rec_en2", fontName="Helvetica-Oblique", fontSize=8.5,
-             textColor=GRIS, alignment=TA_JUSTIFY, leading=12,
-         ))]],
+        [[Paragraph(rec, estilos["recomendacion"])]],
         colWidths=[16 * cm],
     )
     caja_rec.setStyle(TableStyle([
@@ -1404,145 +1618,115 @@ def _seccion_comparativa_plazos(multi: ResultadoMultiPlazo, estilos: dict) -> li
     return elementos
 
 
-def _grafica_impacto_margen(resultado: ResultadoSimulacion) -> Image:
+def _grafica_exposicion_sin_cobertura(resultado: ResultadoSimulacion) -> Image:
     """
-    Barras del resultado de cada mes como % del margen de utilidad mensual.
-    Barras rojas intensas cuando la pérdida habría superado el 20% del margen mensual.
+    Barras rojas mostrando únicamente los meses donde el spot fue peor que el
+    forward (pérdida sin cobertura en MXN). Meses neutrales o favorables al
+    spot se omiten. Mensaje visual: «estos son los golpes que habrías recibido.»
     """
     r = resultado
-    p = r.parametros
     periodos = r.periodos
     n = len(periodos)
 
-    # Margen de utilidad mensual en MXN estimado sobre el costo spot de cada mes
-    margenes_mensuales = [pe.costo_spot_mxn * p.margen_utilidad for pe in periodos]
-    # Impacto: ahorro_mxn / margen_mensual * 100
-    # Positivo = el forward protegió X% del margen; negativo = costó X% del margen
-    impactos = [
-        (pe.ahorro_mxn / m * 100) if m > 0 else 0.0
-        for pe, m in zip(periodos, margenes_mensuales)
-    ]
+    etiquetas = [pe.periodo for pe in periodos]
+    # Solo meses adversos (spot > forward → ahorro_mxn > 0 = se habría perdido sin cobertura)
+    valores = [pe.ahorro_mxn if pe.ahorro_mxn > 0 else 0.0 for pe in periodos]
 
     tick_step = max(1, round(n / 8))
     tick_indices = list(range(0, n, tick_step))
-    tick_labels = [periodos[i].periodo for i in tick_indices]
-
-    # Colores: rojo intenso si habría dañado >20% del margen, verde si protegió, azul claro si costó <20%
-    UMBRAL = 20.0
-    colores = []
-    for imp in impactos:
-        if imp > 0:
-            colores.append("#2d8659")       # verde: el forward protegió
-        elif imp <= -UMBRAL:
-            colores.append("#c0392b")       # rojo: golpe severo al margen
-        else:
-            colores.append("#8eafd4")       # azul claro: costo moderado
+    tick_labels = [etiquetas[i] for i in tick_indices]
 
     fig, ax = plt.subplots(figsize=(12, 4.5))
     fig.patch.set_facecolor("white")
     ax.set_facecolor("#f9fafb")
 
-    ax.bar(range(n), impactos, color=colores, edgecolor="none", width=0.75)
+    colores_barras = ["#c0392b" if v > 0 else "#e5e7eb" for v in valores]
+    ax.bar(range(n), [v / 1_000 for v in valores],
+           color=colores_barras, edgecolor="none", width=0.75)
+
     ax.axhline(0, color="#374151", linewidth=0.8, linestyle="--")
-    # Línea de umbral -20%
-    ax.axhline(-UMBRAL, color="#c0392b", linewidth=1.0, linestyle=":", alpha=0.7)
-    ax.text(n - 0.5, -UMBRAL - 2, "−20% margen", color="#c0392b",
-            fontsize=7, ha="right", va="top")
 
     ax.set_xticks(tick_indices)
     ax.set_xticklabels(tick_labels, rotation=45, ha="right", fontsize=8)
     ax.tick_params(axis="y", labelsize=8)
-    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:.0f}%"))
-    ax.set_ylabel("Impacto sobre margen mensual (%)", fontsize=9, color="#374151")
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"${v:.0f}k"))
+    ax.set_ylabel("Pérdida sin cobertura (miles MXN)", fontsize=9, color="#374151")
     ax.set_title(
-        "Impacto mensual sobre margen de utilidad: Forward vs Sin cobertura\n"
-        "Impact on Monthly Profit Margin: Forward vs Unhedged",
+        "Exposición mensual sin cobertura — meses donde el spot se movió en contra",
         fontsize=10, fontweight="bold", color="#1a365d",
     )
 
-    # Leyenda
-    from matplotlib.patches import Patch
-    ax.legend(
-        handles=[
-            Patch(facecolor="#2d8659", label="Cobertura protegió el margen / Hedge protected margin"),
-            Patch(facecolor="#8eafd4", label="Costo de cobertura <20% margen / Hedge cost <20% margin"),
-            Patch(facecolor="#c0392b", label="Golpe severo al margen >20% / Severe margin hit >20%"),
-        ],
-        fontsize=7, loc="lower right", framealpha=0.8,
-    )
     ax.grid(True, axis="y", alpha=0.3, linestyle="--")
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     plt.tight_layout(pad=2.0)
-    return _imagen_desde_figura(fig, width_cm=16.5, max_height_cm=14.0)
+    return _imagen_desde_figura(fig, width_cm=16.5, max_height_cm=12.0)
 
 
 def _seccion_analisis_riesgo(resultado: ResultadoSimulacion, estilos: dict) -> list:
     """
-    Sección de análisis de riesgo: recuadro de impacto, tabla de 5 peores meses,
-    gráfica de impacto en margen y recuadro de pregunta final.
+    Sección de análisis de riesgo: recuadro de impacto, tabla top-3 meses de
+    mayor exposición, gráfica de barras rojas (exposición sin cobertura) y
+    recuadro de pregunta final.
     """
     r = resultado
     p = r.parametros
     elementos = []
 
     elementos.append(Paragraph(
-        "Análisis de Riesgo / Risk Analysis",
+        "Análisis de Riesgo",
         estilos["encabezado_seccion"],
     ))
     elementos.append(HRFlowable(width="100%", thickness=1.5, color=ROJO, spaceAfter=8))
 
     # --- Pre-cálculos ---
+    n_meses = r.total_meses if r.total_meses > 0 else 1
     margen_anual_mxn = r.costo_total_spot_mxn * p.margen_utilidad
-    margen_mensual_mxn = margen_anual_mxn / r.total_meses if r.total_meses > 0 else 1.0
+    margen_mensual_mxn = margen_anual_mxn / n_meses if margen_anual_mxn > 0 else 1.0
 
-    # Meses donde el forward fue mejor (ahorro positivo = spot habría costado más)
-    meses_protegidos = [pe for pe in r.periodos if pe.ahorro_mxn > 0]
-    n_meses_prot = len(meses_protegidos)
+    meses_adversos = [pe for pe in r.periodos if pe.ahorro_mxn > 0]
+    n_adversos = len(meses_adversos)
 
     danio_evitado_pct_margen = (
         r.danio_total_evitado_mxn / margen_anual_mxn * 100
         if margen_anual_mxn > 0 else 0.0
     )
+    peor_mes_obj = r.mejor_mes  # mejor_mes = mayor ahorro = mayor golpe sin cobertura
+    # Pérdida pura sin spread/markup/fee — consistente con top 3 y narrativo del resumen ejecutivo.
+    peor_mes_mxn = (
+        peor_mes_obj.ahorro_mxn
+        + peor_mes_obj.costo_spread_banco_mxn
+        + peor_mes_obj.costo_markup_hp_mxn
+        + peor_mes_obj.costo_fee_hp_mxn
+        if peor_mes_obj and peor_mes_obj.ahorro_mxn > 0 else 0.0
+    )
     peor_mes_pct_margen = (
-        r.perdida_maxima_un_mes_mxn / margen_mensual_mxn * 100
+        peor_mes_mxn / margen_mensual_mxn * 100
         if margen_mensual_mxn > 0 else 0.0
     )
-    peor_mes_obj = r.mejor_mes  # mejor_mes = mes con mayor ahorro = mes con mayor riesgo sin cobertura
 
     # --- Recuadro principal de impacto ---
-    texto_impacto_es = (
-        f"Sin cobertura, en los <b>{n_meses_prot}</b> meses donde el peso se depreció "
-        f"más de lo esperado, su empresa habría perdido "
-        f"<b>${r.danio_total_evitado_mxn:,.0f} MXN</b> — "
-        f"equivalente al <b>{danio_evitado_pct_margen:.1f}%</b> de su margen de utilidad anual. "
-        f"El peor mes individual (<b>{peor_mes_obj.periodo if peor_mes_obj else 'N/D'}</b>) "
-        f"habría costado <b>${r.perdida_maxima_un_mes_mxn:,.0f} MXN</b> adicionales, "
+    _anio_str = (
+        str(r.fecha_fin.year) if r.fecha_inicio.year == r.fecha_fin.year
+        else f"{r.fecha_inicio.year}–{r.fecha_fin.year}"
+    )
+    texto_impacto = (
+        f"Durante {_anio_str}, en <b>{n_adversos}</b> de {n_meses} meses "
+        f"el tipo de cambio se movió en contra de su operación. "
+        f"Sin cobertura, habría perdido <b>${r.danio_total_evitado_mxn:,.0f} MXN</b> "
+        f"— el <b>{danio_evitado_pct_margen:.1f}%</b> de su margen anual. "
+        f"El peor mes (<b>{peor_mes_obj.periodo if peor_mes_obj else 'N/D'}</b>) "
+        f"representó un golpe de <b>${peor_mes_mxn:,.0f} MXN</b>, "
         f"el <b>{peor_mes_pct_margen:.1f}%</b> de su margen mensual."
     )
-    texto_impacto_en = (
-        f"Without hedging, in the <b>{n_meses_prot}</b> months when the peso depreciated "
-        f"more than expected, your company would have lost "
-        f"<b>${r.danio_total_evitado_mxn:,.0f} MXN</b> — "
-        f"equivalent to <b>{danio_evitado_pct_margen:.1f}%</b> of your annual profit margin. "
-        f"The worst individual month (<b>{peor_mes_obj.periodo if peor_mes_obj else 'N/A'}</b>) "
-        f"would have cost <b>${r.perdida_maxima_un_mes_mxn:,.0f} MXN</b> extra, "
-        f"<b>{peor_mes_pct_margen:.1f}%</b> of your monthly margin."
-    )
 
-    estilo_impacto_es = ParagraphStyle(
+    estilo_impacto = ParagraphStyle(
         "impacto_es", fontName="Helvetica-Bold", fontSize=10,
         textColor=colors.HexColor("#7b1111"),
         alignment=TA_JUSTIFY, leading=15,
     )
-    estilo_impacto_en = ParagraphStyle(
-        "impacto_en", fontName="Helvetica-Oblique", fontSize=8.5,
-        textColor=colors.HexColor("#922b21"),
-        alignment=TA_JUSTIFY, leading=13,
-    )
     caja_impacto = Table(
-        [[Paragraph(texto_impacto_es, estilo_impacto_es)],
-         [Paragraph(texto_impacto_en, estilo_impacto_en)]],
+        [[Paragraph(texto_impacto, estilo_impacto)]],
         colWidths=[16 * cm],
     )
     caja_impacto.setStyle(TableStyle([
@@ -1556,114 +1740,96 @@ def _seccion_analisis_riesgo(resultado: ResultadoSimulacion, estilos: dict) -> l
     elementos.append(caja_impacto)
     elementos.append(Spacer(1, 0.5 * cm))
 
-    # --- Tabla: 5 peores meses sin cobertura ---
+    # --- Tabla: Top 3 meses de mayor exposición ---
     elementos.append(Paragraph(
-        "Los 5 Meses de Mayor Exposición / Top 5 Highest-Risk Months",
+        "Top 3 Meses de Mayor Exposición",
         estilos["sub_encabezado"],
     ))
     elementos.append(Spacer(1, 0.2 * cm))
 
-    # Ordenar periodos de mayor a menor ahorro (los de mayor ahorro = mayor riesgo sin cobertura)
-    top5 = sorted(r.periodos, key=lambda pe: pe.ahorro_mxn, reverse=True)[:5]
+    top3 = sorted(r.periodos, key=lambda pe: pe.ahorro_mxn, reverse=True)[:3]
 
-    enc_top5 = [
-        Paragraph("<b>Mes\nMonth</b>", estilos["tabla_header"]),
-        Paragraph("<b>TC Spot\nSpot Rate</b>", estilos["tabla_header"]),
-        Paragraph("<b>TC Forward\nFwd Rate</b>", estilos["tabla_header"]),
-        Paragraph("<b>Pérdida evitada\nLoss avoided (MXN)</b>", estilos["tabla_header"]),
-        Paragraph("<b>% del margen mensual\n% of monthly margin</b>", estilos["tabla_header"]),
+    enc_top3 = [
+        Paragraph("<b>Mes</b>", estilos["tabla_header"]),
+        Paragraph("<b>TC Spot</b>", estilos["tabla_header"]),
+        Paragraph("<b>TC Forward</b>", estilos["tabla_header"]),
+        Paragraph("<b>Pérdida evitada (MXN)</b>", estilos["tabla_header"]),
+        Paragraph("<b>% del margen mensual</b>", estilos["tabla_header"]),
     ]
-    filas_top5 = [enc_top5]
-    for pe in top5:
+    filas_top3 = [enc_top3]
+    for pe in top3:
+        # Pérdida evitada = diferencia pura (spot - forward_teórico) × volumen cubierto.
+        # Se excluye el spread banco: es un costo de la cobertura, no parte del riesgo evitado.
+        _perdida_evitada = (
+            pe.ahorro_mxn
+            + pe.costo_spread_banco_mxn
+            + pe.costo_markup_hp_mxn
+            + pe.costo_fee_hp_mxn
+        )
         _margen_mes = pe.costo_spot_mxn * p.margen_utilidad
-        _pct_margen = (pe.ahorro_mxn / _margen_mes * 100) if _margen_mes > 0 and pe.ahorro_mxn > 0 else 0.0
-        _es_severo = _pct_margen >= 20.0
-        _color_fila = colors.HexColor("#fdf2f2") if _es_severo else BLANCO
-        filas_top5.append([
+        _pct_margen = (_perdida_evitada / _margen_mes * 100) if _margen_mes > 0 and _perdida_evitada > 0 else 0.0
+        filas_top3.append([
             Paragraph(f"<b>{pe.periodo}</b>", estilos["tabla_celda"]),
-            f"{pe.spot:.4f}",
-            f"{pe.forward_30d:.4f}",
+            Paragraph(f"{pe.spot:.4f}", estilos["tabla_celda"]),
+            Paragraph(f"{pe.forward_30d:.4f}", estilos["tabla_celda"]),
             Paragraph(
-                f"<font color='#c0392b'><b>${pe.ahorro_mxn:,.0f}</b></font>"
-                if pe.ahorro_mxn > 0 else f"${pe.ahorro_mxn:,.0f}",
+                f"<font color='#c0392b'><b>${_perdida_evitada:,.0f}</b></font>"
+                if _perdida_evitada > 0 else f"${_perdida_evitada:,.0f}",
                 estilos["tabla_celda"],
             ),
             Paragraph(
-                f"<font color='{'#c0392b' if _es_severo else '#2d8659'}'>"
-                f"<b>{_pct_margen:.1f}%</b></font>",
+                f"<font color='#c0392b'><b>{_pct_margen:.1f}%</b></font>",
                 estilos["tabla_celda"],
             ),
         ])
 
-    t_top5 = Table(filas_top5,
-                   colWidths=[2.5 * cm, 2.8 * cm, 2.8 * cm, 4.5 * cm, 3.4 * cm])
-    estilo_t5 = [
+    t_top3 = Table(filas_top3,
+                   colWidths=[2.5 * cm, 2.8 * cm, 2.8 * cm, 4.8 * cm, 4.1 * cm])
+    estilo_t3 = [
         ("BACKGROUND", (0, 0), (-1, 0), AZUL),
         ("TEXTCOLOR", (0, 0), (-1, 0), BLANCO),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("FONTSIZE", (0, 0), (-1, -1), 8.5),
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#d1d5db")),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [BLANCO, GRIS_CLARO]),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.HexColor("#fdf2f2"), colors.HexColor("#fef8f8")]),
     ]
-    # Fondo rojo tenue en filas con golpe severo al margen (>20%)
-    for i, pe in enumerate(top5, start=1):
-        _margen_mes = pe.costo_spot_mxn * p.margen_utilidad
-        _pct = (pe.ahorro_mxn / _margen_mes * 100) if _margen_mes > 0 and pe.ahorro_mxn > 0 else 0.0
-        if _pct >= 20.0:
-            estilo_t5.append(("BACKGROUND", (0, i), (-1, i), colors.HexColor("#fdf2f2")))
-    t_top5.setStyle(TableStyle(estilo_t5))
-    elementos.append(t_top5)
+    t_top3.setStyle(TableStyle(estilo_t3))
+    elementos.append(t_top3)
     elementos.append(Spacer(1, 0.5 * cm))
 
-    # --- Gráfica de impacto en margen ---
+    # --- Gráfica: exposición sin cobertura ---
     elementos.append(Paragraph(
-        "Impacto Mensual sobre el Margen de Utilidad / Monthly Margin Impact",
+        "Exposición Mensual Sin Cobertura",
         estilos["sub_encabezado"],
     ))
     elementos.append(Spacer(1, 0.2 * cm))
-    elementos.append(_grafica_impacto_margen(resultado))
+    elementos.append(_grafica_exposicion_sin_cobertura(resultado))
     elementos.append(Spacer(1, 0.4 * cm))
 
     # --- Recuadro de pregunta final ---
-    # Meses con golpe severo: >20% del margen mensual
     meses_severos = sum(
         1 for pe in r.periodos
         if pe.ahorro_mxn > 0 and (pe.costo_spot_mxn * p.margen_utilidad) > 0
         and (pe.ahorro_mxn / (pe.costo_spot_mxn * p.margen_utilidad) * 100) >= 20.0
     )
-    umbral_pct = 20.0
-    texto_pregunta_es = (
+    texto_pregunta = (
         f"La cobertura no busca ganarle al mercado. Busca garantizar que un movimiento "
         f"adverso del tipo de cambio no destruya su margen de operación. "
-        f"En <b>{meses_severos}</b> de los <b>{r.total_meses}</b> meses analizados, "
-        f"el tipo de cambio se movió en su contra lo suficiente para erosionar más del "
-        f"<b>{umbral_pct:.0f}%</b> de su margen mensual. "
+        f"En <b>{meses_severos}</b> de los <b>{n_meses}</b> meses analizados, "
+        f"el tipo de cambio erosionó más del <b>20%</b> del margen mensual. "
         f"<b>¿Puede su empresa absorber esos golpes?</b>"
-    )
-    texto_pregunta_en = (
-        f"Hedging does not aim to beat the market. It aims to ensure that an adverse "
-        f"FX move does not destroy your operating margin. "
-        f"In <b>{meses_severos}</b> of the <b>{r.total_meses}</b> months analyzed, "
-        f"the exchange rate moved against you enough to erode more than "
-        f"<b>{umbral_pct:.0f}%</b> of your monthly margin. "
-        f"<b>Can your company absorb those hits?</b>"
     )
     estilo_pregunta = ParagraphStyle(
         "pregunta_es", fontName="Helvetica", fontSize=9,
         textColor=colors.HexColor("#374151"),
         alignment=TA_JUSTIFY, leading=14,
     )
-    estilo_pregunta_en = ParagraphStyle(
-        "pregunta_en", fontName="Helvetica-Oblique", fontSize=8.5,
-        textColor=GRIS, alignment=TA_JUSTIFY, leading=13,
-    )
     caja_pregunta = Table(
-        [[Paragraph(texto_pregunta_es, estilo_pregunta)],
-         [Paragraph(texto_pregunta_en, estilo_pregunta_en)]],
+        [[Paragraph(texto_pregunta, estilo_pregunta)]],
         colWidths=[16 * cm],
     )
     caja_pregunta.setStyle(TableStyle([
@@ -1709,7 +1875,7 @@ def _recuadro_contexto_seguro(resultado: ResultadoSimulacion, estilos: dict) -> 
 
     if r.ahorro_total_mxn >= 0:
         _costo_pct_vol = r.ahorro_total_porcentaje
-        texto_es = (
+        texto_ctx = (
             f"La cobertura generó un ahorro equivalente al <b>{_costo_pct_vol:.2f}%</b> "
             f"del volumen operado y al <b>{_impacto_pct_margen:.1f}%</b> del margen de utilidad "
             f"durante el período analizado. "
@@ -1718,20 +1884,11 @@ def _recuadro_contexto_seguro(resultado: ResultadoSimulacion, estilos: dict) -> 
             f"equivalente al <b>{_riesgo_pct_margen:.1f}%</b> del margen mensual. "
             f"<b>La cobertura es un costo predecible que elimina un riesgo impredecible.</b>"
         )
-        texto_en = (
-            f"Hedging generated savings equivalent to <b>{_costo_pct_vol:.2f}%</b> "
-            f"of the total FX volume and <b>{_impacto_pct_margen:.1f}%</b> of your profit margin "
-            f"over the analyzed period. "
-            f"In the best month (<b>{_mejor_mes_str}</b>), a single unhedged month would have "
-            f"cost <b>${_riesgo_mes_mxn:,.0f} MXN</b> extra — "
-            f"<b>{_riesgo_pct_margen:.1f}%</b> of that month's margin. "
-            f"<b>Hedging is a predictable cost that eliminates an unpredictable risk.</b>"
-        )
         bg = VERDE_CLARO
         border = VERDE
     else:
         _costo_pct_vol = abs(r.ahorro_total_porcentaje)
-        texto_es = (
+        texto_ctx = (
             f"El costo de la cobertura representa el <b>{_costo_pct_vol:.2f}%</b> "
             f"del volumen operado — equivalente al <b>{_impacto_pct_margen:.1f}%</b> "
             f"del margen de utilidad durante el período. "
@@ -1740,24 +1897,11 @@ def _recuadro_contexto_seguro(resultado: ResultadoSimulacion, estilos: dict) -> 
             f"(<b>{_riesgo_pct_margen:.1f}%</b> del margen mensual). "
             f"<b>La cobertura es un costo predecible que elimina un riesgo impredecible.</b>"
         )
-        texto_en = (
-            f"The hedging cost represents <b>{_costo_pct_vol:.2f}%</b> of your FX volume "
-            f"— equivalent to <b>{_impacto_pct_margen:.1f}%</b> of your annual profit margin. "
-            f"Compare this to the risk: a single month of sharp depreciation "
-            f"(like <b>{_mejor_mes_str}</b>) can erode "
-            f"<b>${_riesgo_mes_mxn:,.0f} MXN</b> of margin "
-            f"(<b>{_riesgo_pct_margen:.1f}%</b> of monthly margin). "
-            f"<b>Hedging is a predictable cost that eliminates an unpredictable risk.</b>"
-        )
         bg = AZUL_CLARO
         border = AZUL_MEDIO
 
     caja = Table(
-        [[Paragraph(texto_es, estilos["cuerpo"])],
-         [Paragraph(texto_en, ParagraphStyle(
-             "ctx_en", fontName="Helvetica-Oblique", fontSize=8.5,
-             textColor=GRIS, alignment=TA_JUSTIFY, leading=12,
-         ))]],
+        [[Paragraph(texto_ctx, estilos["cuerpo"])]],
         colWidths=[16 * cm],
     )
     caja.setStyle(TableStyle([
@@ -1787,7 +1931,7 @@ def _seccion_nivel_cobertura(resultado: ResultadoSimulacion, estilos: dict) -> l
     elementos = []
 
     elementos.append(Paragraph(
-        "Nivel de Cobertura / Coverage Level",
+        "Nivel de Cobertura",
         estilos["encabezado_seccion"],
     ))
     elementos.append(HRFlowable(width="100%", thickness=1.5, color=AZUL, spaceAfter=6))
@@ -1805,9 +1949,7 @@ def _seccion_nivel_cobertura(resultado: ResultadoSimulacion, estilos: dict) -> l
         [[Paragraph(f"Nivel de cobertura: {nivel_actual:.0f}%", nivel_txt)],
          [Paragraph(
              f"El {nivel_actual:.0f}% del volumen mensual (USD ${p.volumen_mensual_usd:,.0f}) "
-             f"se cubre con forward. El {100 - nivel_actual:.0f}% restante se compra al tipo de cambio spot del mes. "
-             f"/ {nivel_actual:.0f}% of monthly volume hedged with forward; "
-             f"{100 - nivel_actual:.0f}% purchased at spot rate.",
+             f"se cubre con forward. El {100 - nivel_actual:.0f}% restante se compra al tipo de cambio spot del mes.",
              nivel_sub,
          )]],
         colWidths=[16 * cm],
@@ -1825,7 +1967,7 @@ def _seccion_nivel_cobertura(resultado: ResultadoSimulacion, estilos: dict) -> l
 
     # --- Tabla comparativa 4 niveles ---
     elementos.append(Paragraph(
-        "Comparativa por Nivel de Cobertura / Coverage Level Comparison",
+        "Comparativa por Nivel de Cobertura",
         estilos["sub_encabezado"],
     ))
     elementos.append(Spacer(1, 0.2 * cm))
@@ -1834,9 +1976,9 @@ def _seccion_nivel_cobertura(resultado: ResultadoSimulacion, estilos: dict) -> l
 
     encabezados = [
         Paragraph("<b>Nivel de\ncobertura</b>", estilos["tabla_header"]),
-        Paragraph("<b>Costo anual de\nprotección (MXN)</b>", estilos["tabla_header"]),
+        Paragraph("<b>Resultado período\n(MXN)</b>", estilos["tabla_header"]),
         Paragraph("<b>% del\nmargen</b>", estilos["tabla_header"]),
-        Paragraph("<b>Pérdida máxima\nevitada (MXN)</b>", estilos["tabla_header"]),
+        Paragraph("<b>Daño evitado\nmáximo (MXN)</b>", estilos["tabla_header"]),
     ]
     filas = [encabezados]
 
@@ -1895,15 +2037,11 @@ def _seccion_nivel_cobertura(resultado: ResultadoSimulacion, estilos: dict) -> l
     elementos.append(t)
     elementos.append(Spacer(1, 0.3 * cm))
 
-    # Nota explicativa
     nota = (
         "La fila resaltada corresponde al nivel de cobertura configurado en esta simulación. "
-        "'Costo anual de protección' es positivo cuando el forward generó ahorro neto y negativo "
-        "cuando la cobertura tuvo un costo adicional frente al spot. 'Pérdida máxima evitada' "
-        "muestra el daño acumulado en meses donde el spot habría sido más caro. "
-        "/ <i>Highlighted row = configured coverage level. 'Annual protection cost' is positive "
-        "when the forward generated net savings, negative when hedging cost more than spot. "
-        "'Max loss avoided' shows cumulative damage in months where spot would have cost more.</i>"
+        "'Resultado período' es positivo cuando el forward generó ahorro neto y negativo "
+        "cuando la cobertura tuvo un costo adicional frente al spot. 'Daño evitado máximo' "
+        "muestra el daño acumulado en meses donde el spot habría sido más caro que el forward."
     )
     elementos.append(Paragraph(nota, ParagraphStyle(
         "nota_cob", fontName="Helvetica", fontSize=7, textColor=GRIS,
@@ -3791,7 +3929,6 @@ def generar_pdf(
     resultado: ResultadoSimulacion,
     ruta_salida: str | Path = "output/reporte_simulacion.pdf",
     multi_plazo: ResultadoMultiPlazo | None = None,
-    comparativa: ResultadoComparativa | None = None,
 ) -> Path:
     """
     Genera el PDF profesional de simulación de ahorro.
@@ -3799,10 +3936,8 @@ def generar_pdf(
     Args:
         resultado: Resultado de la simulación principal (objeto ResultadoSimulacion).
         ruta_salida: Ruta del archivo PDF de salida.
-        multi_plazo: Resultados multi-plazo (30/60/90d). Si se pasa, se agregan
-                     las secciones de desglose de costos y comparativa de plazos.
-        comparativa: Comparativa de estrategias (forward/opciones/collar). Si se pasa,
-                     se agrega la sección de comparativa de estrategias.
+        multi_plazo: Resultados multi-plazo (30/60/90d). Si se pasa, se agrega
+                     la sección de comparativa de plazos.
 
     Returns:
         Path al archivo PDF generado.
@@ -3868,14 +4003,11 @@ def generar_pdf(
     story.extend(_resumen_ejecutivo(resultado, estilos))
     story.append(Spacer(1, 0.4 * cm))
 
-    # 3 — Nivel de cobertura + tabla comparativa 4 niveles
+    # 3 — Catálogo de estrategias (Forward / Opciones / Collar × 4 niveles)
     story.append(PageBreak())
-    story.extend(_seccion_nivel_cobertura(resultado, estilos))
+    story.extend(_catalogo_estrategias(resultado, estilos))
 
-    # 4 — Desempeño por año (mismo bloque, sin page break propio)
-    story.extend(_tabla_resumen_anual(resultado, estilos))
-
-    # 5 — Análisis de Riesgo (sección más importante)
+    # 4 — Análisis de Riesgo (sección más importante)
     story.append(PageBreak())
     story.extend(_seccion_analisis_riesgo(resultado, estilos))
 
@@ -3887,13 +4019,13 @@ def generar_pdf(
 
     # 7 — TC histórico + Análisis de resultado vs spot
     story.append(PageBreak())
-    story.append(Paragraph("Tipo de Cambio Histórico / Historical FX Rate",
+    story.append(Paragraph("Tipo de Cambio Histórico USD/MXN",
                             estilos["encabezado_seccion"]))
     story.append(HRFlowable(width="100%", thickness=1.5, color=AZUL, spaceAfter=6))
     if not df_fx.empty:
         story.append(_grafica_tc_historico(df_fx, resultado.periodos))
     story.append(Spacer(1, 0.5 * cm))
-    story.append(Paragraph("Análisis de Resultado vs Spot / Savings Analysis",
+    story.append(Paragraph("Resultado Mensual vs Spot",
                             estilos["encabezado_seccion"]))
     story.append(HRFlowable(width="100%", thickness=1.5, color=AZUL, spaceAfter=6))
     story.append(_grafica_ahorro_acumulado(df_periodos))
@@ -3903,11 +4035,6 @@ def generar_pdf(
     if multi_plazo is not None:
         story.append(PageBreak())
         story.extend(_seccion_comparativa_plazos(multi_plazo, estilos))
-
-    # 8b — Comparativa de estrategias (si se proveyó)
-    if comparativa is not None:
-        story.append(PageBreak())
-        story.extend(_seccion_comparativa_estrategias(comparativa, estilos))
 
     # 9 — Tabla mensual
     story.append(PageBreak())

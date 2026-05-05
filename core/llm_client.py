@@ -26,6 +26,7 @@ import re
 from typing import Optional
 
 import anthropic
+from dotenv import load_dotenv
 
 from core.security.anonymizer import Anonymizer
 
@@ -97,6 +98,7 @@ class HedgePointLLM:
         api_key: Optional[str] = None,
         model: str = _DEFAULT_MODEL,
     ) -> None:
+        load_dotenv()
         resolved_key = (api_key or os.environ.get("ANTHROPIC_API_KEY", "")).strip()
         if not resolved_key:
             raise ValueError(
@@ -176,7 +178,7 @@ class HedgePointLLM:
 
         prompt = f"""Eres un consultor de gestión de riesgos financieros especializado en \
 PyMEs mexicanas. Analiza la siguiente situación de exposición cambiaria y genera un \
-diagnóstico ejecutivo.
+diagnóstico ejecutivo breve.
 
 DATOS DE EXPOSICIÓN:
 - Sector de la empresa: {prospect_sector}
@@ -189,28 +191,21 @@ DATOS DE EXPOSICIÓN:
 - Costo estimado de cobertura forward mensual: ${costo_fwd:,.0f} MXN
 
 INSTRUCCIONES:
-Genera una respuesta estructurada con exactamente estas 4 secciones:
+Genera una respuesta estructurada con exactamente estas 2 secciones. \
+NO incluyas estrategia recomendada, nombres de bancos ni pasos siguientes específicos.
 
-1. DIAGNÓSTICO DE SITUACIÓN (2-3 párrafos):
-   Explica en lenguaje claro para un dueño de PyME qué significa esta exposición, \
-cuál es el riesgo real para su negocio y cómo el mercado cambiario actual afecta \
-a su sector específico.
+1. DIAGNÓSTICO DE SITUACIÓN:
+   En 1 párrafo claro para un dueño de PyME: qué significa esta exposición, \
+cuál es el riesgo real para su negocio y cómo el entorno cambiario actual \
+afecta a su sector. Sin recomendar instrumentos financieros concretos.
 
 2. NIVEL DE URGENCIA:
-   Indica únicamente: ALTO, MEDIO o BAJO. Justifica en una oración.
+   Indica únicamente: ALTO, MEDIO o BAJO. Justifica en una oración breve.
    (Referencia interna: el análisis sugiere nivel {urgencia_hint})
 
-3. ESTRATEGIA RECOMENDADA:
-   Recomienda una estrategia entre: forward, opciones, collar, o una combinación. \
-Explica brevemente por qué esa estrategia es adecuada para su perfil y sector. \
-Menciona ventajas y limitaciones en 2-3 oraciones.
-
-4. SIGUIENTE PASO CONCRETO:
-   Una acción específica y accionable que el empresario puede tomar esta semana para \
-empezar a protegerse. Sé directo.
-
-TONO: Profesional pero accesible. Evita jerga financiera innecesaria. \
-Máximo 500 palabras en total."""
+TONO: Profesional pero accesible. Sin jerga financiera innecesaria. \
+Sin markdown (no uses **, ##, *, listas con guiones). Texto plano. \
+Máximo 200 palabras en total."""
 
         clean_prompt = self.anonymizer.anonymize(prompt)
 
@@ -256,13 +251,14 @@ INSTRUCCIONES:
 - Señala 1-2 riesgos clave que los importadores/exportadores mexicanos deben vigilar
 - Usa únicamente información de conocimiento público general; no inventes datos precisos
 - Tono: conciso y ejecutivo
-- Máximo 200 palabras
-- No incluyas precios o niveles específicos que requieran datos en tiempo real"""
+- Máximo 100 palabras. Sé conciso.
+- No incluyas precios o niveles específicos que requieran datos en tiempo real
+- Sin markdown (no uses **, ##, *, listas con guiones). Texto plano."""
 
         try:
             message = self._client.messages.create(
                 model=self._model,
-                max_tokens=300,
+                max_tokens=200,
                 timeout=_TIMEOUT_SECONDS,
                 messages=[{"role": "user", "content": prompt}],
             )
@@ -499,14 +495,15 @@ INSTRUCCIONES:
 - Si hay coberturas por vencer pronto, indica qué hacer con ellas
 - Si la exposición residual es significativa, recomienda cubrir qué porción
 - Si el P&L es negativo, explica si conviene mantener o ajustar
-- Tono: directo, sin jerga. Máximo 200 palabras en total. En español."""
+- Tono: directo, sin jerga. Máximo 150 palabras en total. En español.
+- Sin markdown. Texto plano solamente (sin **, ##, *, guiones de lista)."""
 
         clean_prompt = self.anonymizer.anonymize(prompt)
 
         try:
             message = self._client.messages.create(
                 model=self._model,
-                max_tokens=350,
+                max_tokens=250,
                 timeout=_TIMEOUT_SECONDS,
                 messages=[{"role": "user", "content": clean_prompt}],
             )

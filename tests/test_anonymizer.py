@@ -82,18 +82,24 @@ class TestFieldEncryptor:
             encryptor.decrypt(corrupted)
 
     def test_missing_key_raises_value_error(self, monkeypatch):
+        import core.security.anonymizer as anon_mod
+        monkeypatch.setattr(anon_mod, "load_dotenv", lambda **kw: None)
         monkeypatch.delenv("HEDGEPOINT_ENCRYPTION_KEY", raising=False)
         from core.security.anonymizer import FieldEncryptor
         with pytest.raises(ValueError, match="HEDGEPOINT_ENCRYPTION_KEY"):
             FieldEncryptor()
 
     def test_empty_key_raises_value_error(self, monkeypatch):
+        import core.security.anonymizer as anon_mod
+        monkeypatch.setattr(anon_mod, "load_dotenv", lambda **kw: None)
         monkeypatch.setenv("HEDGEPOINT_ENCRYPTION_KEY", "   ")
         from core.security.anonymizer import FieldEncryptor
         with pytest.raises(ValueError, match="HEDGEPOINT_ENCRYPTION_KEY"):
             FieldEncryptor()
 
     def test_different_keys_cannot_decrypt(self, monkeypatch):
+        import core.security.anonymizer as anon_mod
+        monkeypatch.setattr(anon_mod, "load_dotenv", lambda **kw: None)
         from core.security.anonymizer import FieldEncryptor
         from cryptography.exceptions import InvalidTag
 

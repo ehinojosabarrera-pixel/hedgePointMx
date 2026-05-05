@@ -12,15 +12,47 @@ Se construye en Sprint 0.
 
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass, field
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Tasas de interés anualizadas (valores provisionales — Sprint 1)
-TIIE_ANUAL = 0.1025   # TIIE 28 días vigente
-SOFR_ANUAL = 0.0430   # SOFR overnight compuesto
+logger = logging.getLogger(__name__)
+
+# Fallbacks actualizados — se usan si la BD está vacía o las APIs no responden
+TIIE_ANUAL = 0.07    # TIIE 28 días (fallback actualizado)
+SOFR_ANUAL = 0.037   # SOFR overnight (fallback actualizado)
+
+# Fallbacks históricos mantenidos por compatibilidad (no usar en cálculos nuevos)
+_TIIE_FALLBACK = 0.07
+_SOFR_FALLBACK = 0.037
+
+
+def get_tasas_actuales(db_path=None) -> dict:
+    """
+    Devuelve las tasas de interés más recientes desde la BD.
+
+    Si no hay datos en la BD (tabla vacía o error), retorna los fallbacks
+    hardcodeados. Nunca lanza excepción.
+
+    Returns:
+        dict con llaves 'tiie' y 'sofr' como decimales (ej: 0.0702, 0.0366).
+    """
+    try:
+        from core.database import get_latest_interest_rate, DB_PATH
+        path = db_path or DB_PATH
+        tiie = get_latest_interest_rate("TIIE28D", db_path=path)
+        sofr = get_latest_interest_rate("SOFR", db_path=path)
+        return {
+            "tiie": tiie if tiie is not None else _TIIE_FALLBACK,
+            "sofr": sofr if sofr is not None else _SOFR_FALLBACK,
+        }
+    except Exception as exc:
+        logger.warning("get_tasas_actuales: no se pudo leer la BD (%s). Usando fallbacks.", exc)
+        return {"tiie": _TIIE_FALLBACK, "sofr": _SOFR_FALLBACK}
 
 
 @dataclass
@@ -43,8 +75,8 @@ class ForwardUSDMXN:
 
 
 def calcular_forward(spot: float, dias: int,
-                     tiie: float = TIIE_ANUAL,
-                     sofr: float = SOFR_ANUAL) -> ForwardUSDMXN:
+                     tiie: Optional[float] = None,
+                     sofr: Optional[float] = None) -> ForwardUSDMXN:
     """
     Calcula el precio forward teórico USD/MXN usando paridad cubierta de tasas.
 
@@ -56,8 +88,8 @@ def calcular_forward(spot: float, dias: int,
     Args:
         spot:  Tipo de cambio spot USD/MXN.
         dias:  Plazo en días naturales (p.ej. 30, 60, 90).
-        tiie:  Tasa de interés mexicana anualizada (decimal). Default: TIIE_ANUAL.
-        sofr:  Tasa de interés estadounidense anualizada (decimal). Default: SOFR_ANUAL.
+        tiie:  Tasa de interés mexicana anualizada (decimal). None = usa BD o fallback.
+        sofr:  Tasa de interés estadounidense anualizada (decimal). None = usa BD o fallback.
 
     Returns:
         ForwardUSDMXN con el resultado y los parámetros usados.
@@ -65,6 +97,10 @@ def calcular_forward(spot: float, dias: int,
     Raises:
         ValueError: si spot o días son no positivos.
     """
+    if tiie is None or sofr is None:
+        tasas = get_tasas_actuales()
+        tiie = tiie if tiie is not None else tasas["tiie"]
+        sofr = sofr if sofr is not None else tasas["sofr"]
     if spot <= 0:
         raise ValueError(f"El tipo de cambio spot debe ser positivo, recibido: {spot}")
     if dias <= 0:
@@ -83,14 +119,18 @@ def calcular_forward(spot: float, dias: int,
 
 
 def calcular_forwards_estandar(spot: float,
-                                tiie: float = TIIE_ANUAL,
-                                sofr: float = SOFR_ANUAL) -> list[ForwardUSDMXN]:
+                                tiie: Optional[float] = None,
+                                sofr: Optional[float] = None) -> list[ForwardUSDMXN]:
     """
     Calcula forwards a 30, 60 y 90 días para un spot dado.
 
     Returns:
         Lista de ForwardUSDMXN ordenada por plazo.
     """
+    if tiie is None or sofr is None:
+        tasas = get_tasas_actuales()
+        tiie = tiie if tiie is not None else tasas["tiie"]
+        sofr = sofr if sofr is not None else tasas["sofr"]
     return [calcular_forward(spot, dias, tiie, sofr) for dias in (30, 60, 90)]
 
 
@@ -148,8 +188,8 @@ def calcular_opcion_gk(
     strike: float,
     dias: int,
     vol: float,
-    tiie: float = TIIE_ANUAL,
-    sofr: float = SOFR_ANUAL,
+    tiie: Optional[float] = None,
+    sofr: Optional[float] = None,
 ) -> OpcionGK:
     """
     Precio de opción europea sobre USD/MXN usando el modelo Garman-Kohlhagen.
@@ -181,6 +221,10 @@ def calcular_opcion_gk(
     Raises:
         ValueError: si algún parámetro es no positivo.
     """
+    if tiie is None or sofr is None:
+        tasas = get_tasas_actuales()
+        tiie = tiie if tiie is not None else tasas["tiie"]
+        sofr = sofr if sofr is not None else tasas["sofr"]
     if spot <= 0:
         raise ValueError(f"spot debe ser positivo, recibido: {spot}")
     if strike <= 0:
@@ -288,8 +332,8 @@ def simular_monte_carlo(
     spot: float,
     dias: int = 90,
     vol: float = 0.12,
-    tiie: float = TIIE_ANUAL,
-    sofr: float = SOFR_ANUAL,
+    tiie: Optional[float] = None,
+    sofr: Optional[float] = None,
     n_trayectorias: int = 10_000,
     semilla: int | None = 42,
 ) -> ResultadoMC:
@@ -318,6 +362,10 @@ def simular_monte_carlo(
     Raises:
         ValueError: si spot, vol o dias no son positivos.
     """
+    if tiie is None or sofr is None:
+        tasas = get_tasas_actuales()
+        tiie = tiie if tiie is not None else tasas["tiie"]
+        sofr = sofr if sofr is not None else tasas["sofr"]
     if spot <= 0:
         raise ValueError(f"spot debe ser positivo, recibido: {spot}")
     if vol <= 0:

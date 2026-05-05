@@ -362,7 +362,7 @@ def modo_interactivo() -> None:
         spot_actual = engine._obtener_spot_actual()
     console.print(f"[dim]Spot actual: ${spot_actual:.4f} MXN/USD[/dim]")
 
-    output_dir = "output/escenarios"
+    output_dir = "output/escenarios"  # subcarpeta organizada
 
     while True:
         console.print()
@@ -519,7 +519,7 @@ def modo_demo() -> None:
     )
 
     engine = ScenarioEngine()
-    output_dir = "output/demo_escenarios"
+    output_dir = "output/escenarios"
 
     for i, demo in enumerate(_DEMO_ESCENARIOS, start=1):
         console.print()
@@ -605,9 +605,9 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="No generar gráficas.")
     parser.add_argument("--sin-analisis", action="store_true",
                         help="No generar análisis con Claude.")
-    parser.add_argument("--output-dir", type=str, default="output/charts",
+    parser.add_argument("--output-dir", type=str, default="output/escenarios",
                         dest="output_dir",
-                        help="Directorio para gráficas (default: output/charts).")
+                        help="Directorio para graficas (default: output/escenarios).")
 
     return parser
 
