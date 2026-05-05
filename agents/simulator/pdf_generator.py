@@ -354,27 +354,42 @@ def _grafica_tc_historico(df: pd.DataFrame, periodos_compra: list) -> Image:
 
 
 def _grafica_ahorro_acumulado(df_periodos: pd.DataFrame) -> Image:
-    """Genera la gráfica de resultado mensual forward vs spot (barras)."""
+    """
+    Gráfica de resultado mensual: costo directo de cobertura vs ahorro neto.
+
+    Barras verdes: meses donde spot > forward (cobertura protegió).
+      valor = costo_spot_mxn - costo_forward_mxn  (ahorro real neto de todos los costos)
+    Barras grises: meses donde spot ≤ forward (no hubo protección activada).
+      valor = -(costo_spread_banco_mxn + costo_markup_hp_mxn + costo_fee_hp_mxn)
+      Solo el costo fijo directo, sin incluir el costo de oportunidad del forward teórico.
+    """
     n = len(df_periodos)
     periodos = df_periodos["periodo"].tolist()
     tick_step = max(1, round(n / 8))
     tick_indices = list(range(0, n, tick_step))
     tick_labels = [periodos[i] for i in tick_indices]
 
+    costos_directos = (
+        df_periodos["costo_spread_banco_mxn"]
+        + df_periodos["costo_markup_hp_mxn"]
+        + df_periodos["costo_fee_hp_mxn"]
+    )
+    ahorro_real = df_periodos["costo_spot_mxn"] - df_periodos["costo_forward_mxn"]
+
+    valores = []
+    colores_barras = []
+    for i in range(n):
+        if ahorro_real.iloc[i] > 0:
+            valores.append(ahorro_real.iloc[i] / 1000)
+            colores_barras.append("#2d8659")
+        else:
+            valores.append(-costos_directos.iloc[i] / 1000)
+            colores_barras.append("#9ca3af")
+
     fig, ax = plt.subplots(figsize=(10, 4.5))
     fig.patch.set_facecolor("white")
-
-    # Verde = forward ahorró vs spot; azul claro = cobertura costó más (costo de seguro, no pérdida)
-    colores_barras = ["#2d8659" if v >= 0 else "#8eafd4"
-                      for v in df_periodos["ahorro_mxn"]]
     ax.set_facecolor("#f9fafb")
-    ax.bar(
-        range(n),
-        df_periodos["ahorro_mxn"] / 1000,
-        color=colores_barras,
-        edgecolor="none",
-        width=0.75,
-    )
+    ax.bar(range(n), valores, color=colores_barras, edgecolor="none", width=0.75)
     ax.axhline(0, color="#374151", linewidth=0.8, linestyle="--")
     ax.set_xticks(tick_indices)
     ax.set_xticklabels(tick_labels, rotation=45, ha="right", fontsize=8)
@@ -386,8 +401,8 @@ def _grafica_ahorro_acumulado(df_periodos: pd.DataFrame) -> Image:
     from matplotlib.patches import Patch
     ax.legend(
         handles=[
-            Patch(facecolor="#2d8659", label="Ahorro vs Spot"),
-            Patch(facecolor="#8eafd4", label="Costo de protección"),
+            Patch(facecolor="#2d8659", label="Ahorro neto"),
+            Patch(facecolor="#9ca3af", label="Costo de protección"),
         ],
         fontsize=7, loc="upper right", framealpha=0.7,
     )
@@ -1861,13 +1876,19 @@ def _recuadro_contexto_seguro(resultado: ResultadoSimulacion, estilos: dict) -> 
     # Mes con mayor movimiento favorable al importador (mayor spot vs forward)
     _mejor_mes_str = r.mejor_mes.periodo if r.mejor_mes else "N/D"
 
-    # Costo o ahorro como % del margen anual
-    _impacto_mxn = abs(r.ahorro_total_mxn)
-    _impacto_pct_margen = (_impacto_mxn / _margen_total_mxn * 100) if _margen_total_mxn > 0 else 0.0
+    # Costo directo de cobertura = spread + markup + fee (sin costo de oportunidad TIIE/SOFR)
+    _costo_directo_total = sum(
+        pe.costo_spread_banco_mxn + pe.costo_markup_hp_mxn + pe.costo_fee_hp_mxn
+        for pe in r.periodos
+    )
+    _costo_directo_pct_vol = (
+        _costo_directo_total / _vol_total_mxn * 100 if _vol_total_mxn > 0 else 0.0
+    )
+    _costo_directo_pct_margen = (
+        _costo_directo_total / _margen_total_mxn * 100 if _margen_total_mxn > 0 else 0.0
+    )
 
-    # Riesgo de un solo mes sin cobertura = el mayor "costo de no cubrir"
-    # = mes donde el spot fue más caro que el forward (mejor mes para el importador = sin cobertura costó más)
-    # En escenario negativo (peso se apreció), el "riesgo" histórico es el mes que más ahorró con cobertura
+    # Riesgo de un solo mes sin cobertura
     _riesgo_mes_mxn = abs(r.mejor_mes.ahorro_mxn) if r.mejor_mes else 0.0
     _riesgo_pct_margen = (
         _riesgo_mes_mxn / (_margen_total_mxn / r.total_meses) * 100
@@ -1875,23 +1896,25 @@ def _recuadro_contexto_seguro(resultado: ResultadoSimulacion, estilos: dict) -> 
     )
 
     if r.ahorro_total_mxn >= 0:
-        _costo_pct_vol = r.ahorro_total_porcentaje
+        _ahorro_pct_vol = r.ahorro_total_porcentaje
+        _impacto_pct_margen = abs(r.ahorro_total_mxn) / _margen_total_mxn * 100 if _margen_total_mxn > 0 else 0.0
         texto_ctx = (
-            f"La cobertura generó un ahorro equivalente al <b>{_costo_pct_vol:.2f}%</b> "
+            f"La cobertura generó un ahorro neto equivalente al <b>{_ahorro_pct_vol:.2f}%</b> "
             f"del volumen operado y al <b>{_impacto_pct_margen:.1f}%</b> del margen de utilidad "
             f"durante el período analizado. "
+            f"El costo directo de la cobertura (spread + fee) fue solo el <b>{_costo_directo_pct_vol:.2f}%</b> "
+            f"del volumen — un costo fijo predecible. "
             f"Compárelo con el riesgo: en el mejor mes (<b>{_mejor_mes_str}</b>), "
-            f"un mes sin cobertura habría costado <b>${_riesgo_mes_mxn:,.0f} MXN</b> adicionales, "
-            f"equivalente al <b>{_riesgo_pct_margen:.1f}%</b> del margen mensual. "
+            f"un mes sin cobertura habría costado <b>${_riesgo_mes_mxn:,.0f} MXN</b> adicionales "
+            f"(<b>{_riesgo_pct_margen:.1f}%</b> del margen mensual). "
             f"<b>La cobertura es un costo predecible que elimina un riesgo impredecible.</b>"
         )
         bg = VERDE_CLARO
         border = VERDE
     else:
-        _costo_pct_vol = abs(r.ahorro_total_porcentaje)
         texto_ctx = (
-            f"El costo de la cobertura representa el <b>{_costo_pct_vol:.2f}%</b> "
-            f"del volumen operado — equivalente al <b>{_impacto_pct_margen:.1f}%</b> "
+            f"El costo directo de la cobertura (spread + fee) representa el <b>{_costo_directo_pct_vol:.2f}%</b> "
+            f"del volumen operado — equivalente al <b>{_costo_directo_pct_margen:.1f}%</b> "
             f"del margen de utilidad durante el período. "
             f"Compárelo con el riesgo: en <b>{_mejor_mes_str}</b>, un solo mes de depreciación "
             f"fuerte puede erosionar <b>${_riesgo_mes_mxn:,.0f} MXN</b> del margen "
