@@ -495,7 +495,7 @@ INSTRUCCIONES:
 - Si hay coberturas por vencer pronto, indica qué hacer con ellas
 - Si la exposición residual es significativa, recomienda cubrir qué porción
 - Si el P&L es negativo, explica si conviene mantener o ajustar
-- Tono: directo, sin jerga. Máximo 150 palabras en total. En español.
+- Tono: directo, sin jerga. Máximo 100 palabras en total. En español.
 - Sin markdown. Texto plano solamente (sin **, ##, *, guiones de lista)."""
 
         clean_prompt = self.anonymizer.anonymize(prompt)

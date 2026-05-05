@@ -184,8 +184,11 @@ def _procesar_cliente(
     datos = generar_datos_reporte(prospect_id, db_path=db_path)
     datos["_db_path"] = db_path
 
-    fecha_str = date.today().isoformat()
-    out_path  = str(output_dir / str(prospect_id) / fecha_str / "reporte.pdf")
+    from datetime import datetime as _dt
+    _now      = _dt.now()
+    fecha_str = _now.strftime("%Y-%m-%d")
+    hhmm_str  = _now.strftime("%H%M")
+    out_path  = str(output_dir / str(prospect_id) / fecha_str / f"reporte_{hhmm_str}.pdf")
 
     with console.status(f"[cyan]Generando PDF prospect_id={prospect_id}…[/cyan]"):
         path_pdf = generar_pdf_reporte(datos, output_path=out_path)
@@ -226,8 +229,11 @@ def run_demo(output_dir: Path) -> None:
         datos = generar_datos_reporte(prospect_id, db_path=_DEMO_DB)
         datos["_db_path"] = _DEMO_DB
 
-    fecha_str = date.today().isoformat()
-    out_path  = str(output_dir / str(prospect_id) / fecha_str / "reporte.pdf")
+    from datetime import datetime as _dt
+    _now      = _dt.now()
+    fecha_str = _now.strftime("%Y-%m-%d")
+    hhmm_str  = _now.strftime("%H%M")
+    out_path  = str(output_dir / str(prospect_id) / fecha_str / f"reporte_{hhmm_str}.pdf")
 
     with console.status("[cyan]Generando PDF…[/cyan]"):
         path_pdf = generar_pdf_reporte(datos, output_path=out_path)

@@ -578,12 +578,14 @@ def generar_pdf_reporte(
     fecha_str = fecha_rep.strftime("%Y-%m-%d") if hasattr(fecha_rep, "strftime") else str(fecha_rep)
 
     if output_path is None:
+        from datetime import datetime as _dt
+        hhmm_str = _dt.now().strftime("%H%M")
         out_dir = (
             Path(__file__).parent.parent.parent
             / "output" / "reports" / str(prospect_id) / fecha_str
         )
         out_dir.mkdir(parents=True, exist_ok=True)
-        output_path = str(out_dir / "reporte.pdf")
+        output_path = str(out_dir / f"reporte_{hhmm_str}.pdf")
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
