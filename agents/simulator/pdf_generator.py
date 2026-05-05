@@ -889,23 +889,24 @@ def _catalogo_estrategias(resultado: ResultadoSimulacion, estilos: dict) -> list
         # Fallback a Bachelier si GK falla (vol o spot degenerado)
         _prima_put_por_usd = _vol_mensual_log * 0.4 * spot_promedio
 
-    # Prima neta del collar: put ATM comprado − call OTM vendido a 1σ (dinámico)
+    # Prima neta del collar: put ATM comprado − put OTM vendido a 1σ por debajo del spot
+    # (estructura para importador: protege contra alza del USD, subsidio = put vendido bajo el spot)
     import math as _math_cat
     _otm_pct_collar = _vol_anual * _math_cat.sqrt(30.0 / 365.0)  # 1σ a 30 días
-    _strike_call_otm = spot_promedio * (1.0 + _otm_pct_collar)
+    _strike_put_otm = spot_promedio * (1.0 - _otm_pct_collar)   # por DEBAJO del spot
     try:
-        _gk_call_otm = calcular_opcion_gk(
+        _gk_put_otm = calcular_opcion_gk(
             spot=spot_promedio,
-            strike=_strike_call_otm,
+            strike=_strike_put_otm,
             dias=30,
             vol=_vol_anual,
             tiie=_tiie,
             sofr=_sofr,
         )
-        _prima_collar_neta_por_usd = _prima_put_por_usd - _gk_call_otm.call  # put − ingreso del call
+        _prima_collar_neta_por_usd = _prima_put_por_usd - _gk_put_otm.put  # put ATM − ingreso del put OTM
     except ValueError:
         _prima_collar_neta_por_usd = _prima_put_por_usd * 0.50  # fallback: 50% subsidio
-        _gk_call_otm = None
+        _gk_put_otm = None
 
     del _math_cat
 
@@ -1064,8 +1065,8 @@ def _catalogo_estrategias(resultado: ResultadoSimulacion, estilos: dict) -> list
     elementos.append(_tabla_estrategia("Collar", filas_col))
     elementos.append(Spacer(1, 0.2 * cm))
     elementos.append(_pros_contras(
-        f"✅  Menor costo — call vendido a 1σ ({_otm_pct_collar*100:.1f}% OTM) subsidia la prima.",
-        "❌  Limita tu ganancia si el peso se aprecia mucho.",
+        f"✅  Menor costo — put vendido a 1σ ({_otm_pct_collar*100:.1f}% OTM bajo el spot) subsidia la prima.",
+        "❌  Limita tu ganancia si el peso se aprecia mucho (por debajo del strike del put vendido).",
     ))
     elementos.append(Spacer(1, 0.4 * cm))
 
@@ -1075,9 +1076,10 @@ def _catalogo_estrategias(resultado: ResultadoSimulacion, estilos: dict) -> list
     _nota_pie = (
         f"Costos incluyen el diferencial de tasas TIIE/SOFR y spread bancario estimado de "
         f"${p.spread_banco:.2f}/USD. Opciones y collar estimados con volatilidad histórica "
-        f"de {_vol_anual_pct:.1f}% anual. El call vendido del collar se posiciona a 1σ a 30 días "
-        f"(OTM {_otm_pct_collar*100:.1f}% = vol × √(30/365)), lo que calibra el subsidio "
-        f"automáticamente con la volatilidad del período. "
+        f"de {_vol_anual_pct:.1f}% anual. El put vendido del collar se posiciona a 1σ a 30 días "
+        f"por debajo del spot (OTM {_otm_pct_collar*100:.1f}% = vol × √(30/365)), lo que calibra "
+        f"el subsidio automáticamente con la volatilidad del período. Strike put vendido ≈ "
+        f"${_strike_put_otm:.4f} MXN/USD. "
         "Los costos reales dependen de las condiciones de mercado al momento de contratación."
     )
     elementos.append(Paragraph(_nota_pie, ParagraphStyle(
@@ -1195,6 +1197,14 @@ def _tabla_mensual(resultado: ResultadoSimulacion, estilos: dict) -> list:
 
     t.setStyle(TableStyle(estilo_tabla))
     elementos.append(t)
+    elementos.append(Spacer(1, 0.15 * cm))
+    elementos.append(Paragraph(
+        "* La columna (%) refleja la diferencia entre el costo con forward y el costo spot "
+        "(incluye el diferencial de tasas TIIE/SOFR, no solo los costos directos de la cobertura). "
+        "El costo directo (spread + markup + fee) representa típicamente ~0.5% del volumen.",
+        ParagraphStyle("nota_tabla", fontName="Helvetica-Oblique", fontSize=7,
+                       textColor=GRIS, leading=10),
+    ))
     return elementos
 
 
@@ -1770,38 +1780,38 @@ def _seccion_analisis_riesgo(resultado: ResultadoSimulacion, estilos: dict) -> l
     ))
     elementos.append(Spacer(1, 0.2 * cm))
 
-    top3 = sorted(r.periodos, key=lambda pe: pe.ahorro_mxn, reverse=True)[:3]
+    # Solo meses donde spot > forward: el TC se movió en contra del importador
+    _meses_protegidos = [pe for pe in r.periodos if pe.spot > pe.forward_30d]
+    top3 = sorted(
+        _meses_protegidos,
+        key=lambda pe: pe.volumen_usd * (pe.spot - pe.forward_30d),
+        reverse=True,
+    )[:3]
 
     enc_top3 = [
         Paragraph("<b>Mes</b>", estilos["tabla_header"]),
         Paragraph("<b>TC Spot</b>", estilos["tabla_header"]),
         Paragraph("<b>TC Forward</b>", estilos["tabla_header"]),
-        Paragraph("<b>Pérdida evitada (MXN)</b>", estilos["tabla_header"]),
+        Paragraph("<b>Ahorro bruto (sin costos)</b>", estilos["tabla_header"]),
         Paragraph("<b>% del margen mensual</b>", estilos["tabla_header"]),
     ]
     filas_top3 = [enc_top3]
     for pe in top3:
-        # Pérdida evitada = diferencia pura (spot - forward_teórico) × volumen cubierto.
-        # Se excluye el spread banco: es un costo de la cobertura, no parte del riesgo evitado.
-        _perdida_evitada = (
-            pe.ahorro_mxn
-            + pe.costo_spread_banco_mxn
-            + pe.costo_markup_hp_mxn
-            + pe.costo_fee_hp_mxn
-        )
+        # Ahorro bruto = delta FX puro, sin descontar costos de la cobertura
+        _ahorro_bruto = pe.volumen_usd * (pe.spot - pe.forward_30d)
         _margen_mes = pe.costo_spot_mxn * p.margen_utilidad
-        _pct_margen = (_perdida_evitada / _margen_mes * 100) if _margen_mes > 0 and _perdida_evitada > 0 else 0.0
+        _pct_margen = (_ahorro_bruto / _margen_mes * 100) if _margen_mes > 0 and _ahorro_bruto > 0 else 0.0
         filas_top3.append([
             Paragraph(f"<b>{pe.periodo}</b>", estilos["tabla_celda"]),
             Paragraph(f"{pe.spot:.4f}", estilos["tabla_celda"]),
             Paragraph(f"{pe.forward_30d:.4f}", estilos["tabla_celda"]),
             Paragraph(
-                f"<font color='#c0392b'><b>${_perdida_evitada:,.0f}</b></font>"
-                if _perdida_evitada > 0 else f"${_perdida_evitada:,.0f}",
+                f"<font color='#16a34a'><b>${_ahorro_bruto:,.0f}</b></font>"
+                if _ahorro_bruto > 0 else f"${_ahorro_bruto:,.0f}",
                 estilos["tabla_celda"],
             ),
             Paragraph(
-                f"<font color='#c0392b'><b>{_pct_margen:.1f}%</b></font>",
+                f"<font color='#16a34a'><b>{_pct_margen:.1f}%</b></font>",
                 estilos["tabla_celda"],
             ),
         ])
@@ -1822,7 +1832,14 @@ def _seccion_analisis_riesgo(resultado: ResultadoSimulacion, estilos: dict) -> l
     ]
     t_top3.setStyle(TableStyle(estilo_t3))
     elementos.append(t_top3)
-    elementos.append(Spacer(1, 0.5 * cm))
+    elementos.append(Spacer(1, 0.15 * cm))
+    elementos.append(Paragraph(
+        "* Solo se muestran meses donde el spot superó al forward (TC adverso al importador). "
+        "El ahorro bruto es volumen × (spot − forward), sin descontar los costos de la cobertura.",
+        ParagraphStyle("nota_top3", fontName="Helvetica-Oblique", fontSize=7,
+                       textColor=GRIS, leading=10),
+    ))
+    elementos.append(Spacer(1, 0.4 * cm))
 
     # _grafica_exposicion_sin_cobertura omitida en modo comparativo (barras vacías en apreciación)
 
@@ -3974,13 +3991,13 @@ def _grafica_perdida_potencial(resultado: "ResultadoSimulacion") -> "Image":
     """
     Gráfica 1: Barras agrupadas «¿Cuánto puedes perder?»
     Barra roja = pérdida incremental sin cobertura ante depreciación.
-    Barra azul = costo incremental de la cobertura (prima forward + spread), idéntico
-                 al "Costo mensual" al 100% del catálogo de estrategias × 3 meses.
-    plazo_meses = 3 (trimestral).
+    Barra azul = costo incremental de la cobertura (prima forward + spread), al 100%
+                 del catálogo de estrategias × 1 mes.
+    plazo_meses = 1 (mensual).
     spot_actual = promedio de los spots del backtesting real.
     """
     p = resultado.parametros
-    plazo_meses = 3
+    plazo_meses = 1
     periodos = resultado.periodos
     n_meses = len(periodos)
     spot_actual = float(np.mean([per.spot for per in periodos]))
@@ -3990,7 +4007,7 @@ def _grafica_perdida_potencial(resultado: "ResultadoSimulacion") -> "Image":
     _prima_total = sum(pe.volumen_usd * (pe.forward_30d - pe.spot_forward_base) for pe in periodos)
     _spread_total = sum(pe.volumen_usd * p.spread_banco for pe in periodos)
     costo_fwd_mensual = (_prima_total + _spread_total) / n_meses
-    costo_fwd_trimestral = costo_fwd_mensual * plazo_meses
+    costo_fwd_30d = costo_fwd_mensual * plazo_meses
 
     escenarios = _ESCENARIOS_DEF
     x = np.arange(len(escenarios))
@@ -4003,7 +4020,7 @@ def _grafica_perdida_potencial(resultado: "ResultadoSimulacion") -> "Image":
         # Pérdida incremental: lo que pagas extra vs comprar al spot actual
         perdida = p.volumen_mensual_usd * (spot_nuevo - spot_actual) * plazo_meses
         perdidas_sin.append(perdida)
-        costos_fwd.append(costo_fwd_trimestral)
+        costos_fwd.append(costo_fwd_30d)
 
     fig, ax = plt.subplots(figsize=(9, 4.5))
     fig.patch.set_facecolor("white")
@@ -4045,7 +4062,7 @@ def _grafica_perdida_potencial(resultado: "ResultadoSimulacion") -> "Image":
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     fig.text(0.5, 0.01,
-             "Horizonte trimestral (3 meses) · volumen mensual del cliente",
+             "Horizonte mensual (30 días) · volumen mensual del cliente",
              ha="center", fontsize=8, color="#6b7280")
     plt.tight_layout(pad=1.5)
 
@@ -4075,7 +4092,7 @@ def _grafica_montecarlo_consolidada(resultado: "ResultadoSimulacion") -> "Image"
     else:
         vol = 0.12
 
-    mc = simular_monte_carlo(spot=spot_actual, dias=90, vol=vol, n_trayectorias=10_000)
+    mc = simular_monte_carlo(spot=spot_actual, dias=30, vol=vol, n_trayectorias=10_000)
     sims = mc.precios_finales
 
     fig, ax = plt.subplots(figsize=(10, 5))
@@ -4097,10 +4114,10 @@ def _grafica_montecarlo_consolidada(resultado: "ResultadoSimulacion") -> "Image"
         ax.axvline(spot_esc, color=color, linewidth=1.8, linestyle=ls,
                    label=f"{etiqueta} → ${spot_esc:.2f}  (percentil {pctil:.0f}°)")
 
-    ax.set_xlabel("USD/MXN a 90 días", fontsize=9, color="#374151")
+    ax.set_xlabel("USD/MXN a 30 días", fontsize=9, color="#374151")
     ax.set_ylabel("Frecuencia", fontsize=9, color="#374151")
     ax.set_title(
-        "Distribución Monte Carlo USD/MXN a 90 días (10,000 simulaciones)",
+        "Distribución Monte Carlo USD/MXN a 30 días (10,000 simulaciones)",
         fontsize=11, fontweight="bold", color="#1a365d",
     )
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"${x:.2f}"))
@@ -4144,7 +4161,7 @@ def _seccion_escenarios_hipoteticos(
         img1 = _grafica_perdida_potencial(resultado)
         elementos.append(Paragraph(
             "Pérdida potencial sin cobertura vs costo de protección con forward "
-            "(horizonte de 3 meses, basado en volumen mensual del cliente)",
+            "(horizonte de 1 mes, basado en volumen mensual del cliente)",
             ParagraphStyle("esc_sub1", parent=estilos["sub_encabezado"],
                            spaceAfter=4, textColor=AZUL_MEDIO),
         ))
@@ -4157,7 +4174,7 @@ def _seccion_escenarios_hipoteticos(
     try:
         img2 = _grafica_montecarlo_consolidada(resultado)
         elementos.append(Paragraph(
-            "Distribución de probabilidad del tipo de cambio a 90 días "
+            "Distribución de probabilidad del tipo de cambio a 30 días "
             "(volatilidad estimada del período analizado)",
             ParagraphStyle("esc_sub2", parent=estilos["sub_encabezado"],
                            spaceAfter=4, textColor=AZUL_MEDIO),
