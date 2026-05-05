@@ -1800,7 +1800,7 @@ def simulate_collar_strategy(
     parametros: ParametrosCliente,
     years: int = 2,
     markup_banco_pct: float = 0.15,
-    call_otm_pct: float = 0.03,
+    call_otm_pct: float | None = None,
     ventana_vol_dias: int = 30,
     db_path: Path = DB_PATH,
     resultado_forwards: ResultadoSimulacion | None = None,
@@ -1870,11 +1870,13 @@ def simulate_collar_strategy(
     """
     from core.models.pricing import calcular_opcion_gk
 
-    if call_otm_pct <= 0:
+    if call_otm_pct is not None and call_otm_pct <= 0:
         raise ValueError(
             f"call_otm_pct debe ser positivo, recibido: {call_otm_pct}. "
             "Usa 0.03 para un put vendido 3% OTM por debajo del spot."
         )
+    # None → calcular dinámicamente por período como 1σ a 30 días
+    _otm_fijo = call_otm_pct
 
     hoy = date.today()
     fecha_inicio_datos = date(hoy.year - years, hoy.month, 1)
@@ -1898,6 +1900,7 @@ def simulate_collar_strategy(
     plazo_dias = p.plazo_forward_dias
 
     periodos: list[ResultadoPeriodoCollar] = []
+    _otm_efectivos: list[float] = []  # para calcular el promedio del OTM dinámico
 
     for mes_ts in meses:
         mes_dt = mes_ts.date()
@@ -1938,6 +1941,10 @@ def simulate_collar_strategy(
         # --- Volatilidad histórica ---
         vol = _calcular_vol_historica(df_fx, fecha_contratacion, ventana_vol_dias)
 
+        # OTM dinámico: 1σ a 30 días si no se especificó manualmente
+        otm_periodo = _otm_fijo if _otm_fijo is not None else vol * math.sqrt(30.0 / 365.0)
+        _otm_efectivos.append(otm_periodo)
+
         # --- Strikes ---
         # El importador COMPRA USD. Necesita protección si USD SUBE (peso deprecia).
         # Convención USD/MXN: S = cuántos pesos cuesta 1 USD.
@@ -1945,9 +1952,9 @@ def simulate_collar_strategy(
         # Call ATM comprado:  strike_call_comprado = spot_contratacion (ATM)
         #   → el importador puede comprar USD al spot de hoy si el USD sube.
         # Put OTM vendido:    strike_put_vendido   = spot_contratacion × (1 - otm_pct)
-        #   → OTM por debajo del spot; solo se activa si el USD cae mucho.
-        strike_call_comprado = spot_contratacion                         # ATM
-        strike_put_vendido   = spot_contratacion * (1.0 - call_otm_pct) # OTM −N%
+        #   → OTM a 1σ por debajo del spot; solo se activa si el USD cae mucho.
+        strike_call_comprado = spot_contratacion                           # ATM
+        strike_put_vendido   = spot_contratacion * (1.0 - otm_periodo)    # OTM −1σ
 
         # --- Pricing de ambas patas (Garman-Kohlhagen) ---
         try:
@@ -2065,13 +2072,17 @@ def simulate_collar_strategy(
         "Simulación de collar completada: %d períodos procesados.", len(periodos)
     )
 
+    _otm_efectivo_promedio = (
+        float(sum(_otm_efectivos) / len(_otm_efectivos))
+        if _otm_efectivos else (_otm_fijo or 0.03)
+    )
     return ResultadoSimulacionCollar(
         parametros=parametros,
         periodos=periodos,
         fecha_inicio=periodos[0].fecha_compra,
         fecha_fin=periodos[-1].fecha_compra,
         markup_banco_pct=markup_banco_pct,
-        otm_pct=call_otm_pct,
+        otm_pct=_otm_efectivo_promedio,
     )
 
 
@@ -2408,7 +2419,7 @@ def find_optimal_mix(
     parametros: ParametrosCliente,
     years: int = 2,
     markup_banco_pct: float = 0.15,
-    call_otm_pct: float = 0.03,
+    call_otm_pct: float | None = None,
     db_path: str = DB_PATH,
 ) -> "ResultadoComparativa":
     """

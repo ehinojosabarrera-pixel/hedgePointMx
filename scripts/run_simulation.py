@@ -374,7 +374,7 @@ def ejecutar_simulacion_collar(
     markup: float = 0.00,
     fee: float = 15_000.0,
     markup_banco_pct: float = 0.15,
-    call_otm_pct: float = 0.03,
+    call_otm_pct: float | None = None,
 ) -> None:
     """
     Ejecuta la simulación de cobertura con collar (put ATM + call OTM vendido) y genera el PDF.
@@ -404,7 +404,8 @@ def ejecutar_simulacion_collar(
     print(f"    Markup HedgePoint:    ${markup:.2f} MXN/USD")
     print(f"    Fee mensual HP:       ${fee:,.0f} MXN")
     print(f"    Markup banco (prima): {markup_banco_pct*100:.0f}%")
-    print(f"    Call OTM strike:      +{call_otm_pct*100:.1f}% sobre spot")
+    _otm_display = f"+{call_otm_pct*100:.1f}%" if call_otm_pct is not None else "dinámico (1σ a 30d)"
+    print(f"    Put OTM strike:       {_otm_display} bajo spot")
     print(f"    Instrumento:          Put ATM + Call OTM vendido (Garman-Kohlhagen)")
     print(f"    Archivo de salida:    {output}")
     print("-" * 60)
@@ -459,7 +460,7 @@ def ejecutar_simulacion_comparativa(
     markup: float = 0.00,
     fee: float = 15_000.0,
     markup_banco_pct: float = 0.15,
-    call_otm_pct: float = 0.03,
+    call_otm_pct: float | None = None,
 ) -> None:
     """
     Ejecuta las 3 estrategias base, calcula la mezcla óptima y genera el PDF comparativo.
@@ -492,7 +493,8 @@ def ejecutar_simulacion_comparativa(
     print(f"    Markup HedgePoint:    ${markup:.2f} MXN/USD")
     print(f"    Fee mensual HP:       ${fee:,.0f} MXN")
     print(f"    Markup banco (prima): {markup_banco_pct*100:.0f}%")
-    print(f"    Put OTM strike:       -{call_otm_pct*100:.1f}% bajo spot (collar)")
+    _otm_disp = f"-{call_otm_pct*100:.1f}%" if call_otm_pct is not None else "dinámico (1σ a 30d)"
+    print(f"    Put OTM strike:       {_otm_disp} bajo spot (collar)")
     print(f"    Estrategias:          Forward, Opciones Put ATM, Collar")
     print(f"    Archivo de salida:    {output}")
     print("-" * 60)
@@ -702,11 +704,11 @@ Ejemplos:
     parser.add_argument(
         "--call-otm",
         type=float,
-        default=3.0,
+        default=None,
         dest="call_otm",
         help=(
-            "Distancia OTM del call vendido en el collar, en %% sobre spot "
-            "(solo aplica con --estrategia collar, default: 3)"
+            "Distancia OTM del put vendido en el collar, en %% sobre spot "
+            "(default: dinámico = vol_anual × √(30/365), ~1σ a 30 días)"
         ),
     )
     parser.add_argument(
@@ -811,7 +813,7 @@ Ejemplos:
             markup=markup,
             fee=fee,
             markup_banco_pct=args.markup_banco / 100.0,
-            call_otm_pct=args.call_otm / 100.0,
+            call_otm_pct=args.call_otm / 100.0 if args.call_otm is not None else None,
         )
 
     elif estrategia in ("comparativa", "optima"):
@@ -825,7 +827,7 @@ Ejemplos:
             markup=markup,
             fee=fee,
             markup_banco_pct=args.markup_banco / 100.0,
-            call_otm_pct=args.call_otm / 100.0,
+            call_otm_pct=args.call_otm / 100.0 if args.call_otm is not None else None,
         )
 
 

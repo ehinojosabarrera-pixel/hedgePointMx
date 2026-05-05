@@ -874,11 +874,14 @@ def _catalogo_estrategias(resultado: ResultadoSimulacion, estilos: dict) -> list
         # Fallback a Bachelier si GK falla (vol o spot degenerado)
         _prima_put_por_usd = _vol_mensual_log * 0.4 * spot_promedio
 
-    # Prima neta del collar: put ATM comprado − call OTM vendido (strike = spot × 1.03)
+    # Prima neta del collar: put ATM comprado − call OTM vendido a 1σ (dinámico)
+    import math as _math_cat
+    _otm_pct_collar = _vol_anual * _math_cat.sqrt(30.0 / 365.0)  # 1σ a 30 días
+    _strike_call_otm = spot_promedio * (1.0 + _otm_pct_collar)
     try:
         _gk_call_otm = calcular_opcion_gk(
             spot=spot_promedio,
-            strike=spot_promedio * 1.03,   # OTM ~3% sobre el spot
+            strike=_strike_call_otm,
             dias=30,
             vol=_vol_anual,
             tiie=_tiie,
@@ -887,6 +890,9 @@ def _catalogo_estrategias(resultado: ResultadoSimulacion, estilos: dict) -> list
         _prima_collar_neta_por_usd = _prima_put_por_usd - _gk_call_otm.call  # put − ingreso del call
     except ValueError:
         _prima_collar_neta_por_usd = _prima_put_por_usd * 0.50  # fallback: 50% subsidio
+        _gk_call_otm = None
+
+    del _math_cat
 
     # ------------------------------------------------------------------
     # Helper: construir tabla de una estrategia
@@ -1043,7 +1049,7 @@ def _catalogo_estrategias(resultado: ResultadoSimulacion, estilos: dict) -> list
     elementos.append(_tabla_estrategia("Collar", filas_col))
     elementos.append(Spacer(1, 0.2 * cm))
     elementos.append(_pros_contras(
-        "✅  Menor costo — la prima se subsidia con el techo.",
+        f"✅  Menor costo — call vendido a 1σ ({_otm_pct_collar*100:.1f}% OTM) subsidia la prima.",
         "❌  Limita tu ganancia si el peso se aprecia mucho.",
     ))
     elementos.append(Spacer(1, 0.4 * cm))
@@ -1054,8 +1060,10 @@ def _catalogo_estrategias(resultado: ResultadoSimulacion, estilos: dict) -> list
     _nota_pie = (
         f"Costos incluyen el diferencial de tasas TIIE/SOFR y spread bancario estimado de "
         f"${p.spread_banco:.2f}/USD. Opciones y collar estimados con volatilidad histórica "
-        f"de {_vol_anual_pct:.1f}% anual. Los costos reales dependen de las condiciones de "
-        "mercado al momento de contratación."
+        f"de {_vol_anual_pct:.1f}% anual. El call vendido del collar se posiciona a 1σ a 30 días "
+        f"(OTM {_otm_pct_collar*100:.1f}% = vol × √(30/365)), lo que calibra el subsidio "
+        f"automáticamente con la volatilidad del período. "
+        "Los costos reales dependen de las condiciones de mercado al momento de contratación."
     )
     elementos.append(Paragraph(_nota_pie, ParagraphStyle(
         "nota_cat", fontName="Helvetica-Oblique", fontSize=7,
