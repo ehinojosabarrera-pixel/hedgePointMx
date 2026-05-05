@@ -568,7 +568,7 @@ def ejecutar_simulacion_comparativa(
     # 5. Generar PDF con sección comparativa integrada
     print("\nGenerando PDF comparativo...")
     try:
-        ruta_pdf = generar_pdf(resultado_fwd, output)
+        ruta_pdf = generar_pdf(resultado_fwd, output, comparativa=comparativa)
         print(f"\n  PDF generado exitosamente:")
         print(f"  → {ruta_pdf.resolve()}")
     except ImportError as e:

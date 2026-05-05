@@ -1801,14 +1801,7 @@ def _seccion_analisis_riesgo(resultado: ResultadoSimulacion, estilos: dict) -> l
     elementos.append(t_top3)
     elementos.append(Spacer(1, 0.5 * cm))
 
-    # --- Gráfica: exposición sin cobertura ---
-    elementos.append(Paragraph(
-        "Exposición Mensual Sin Cobertura",
-        estilos["sub_encabezado"],
-    ))
-    elementos.append(Spacer(1, 0.2 * cm))
-    elementos.append(_grafica_exposicion_sin_cobertura(resultado))
-    elementos.append(Spacer(1, 0.4 * cm))
+    # _grafica_exposicion_sin_cobertura omitida en modo comparativo (barras vacías en apreciación)
 
     # --- Recuadro de pregunta final ---
     meses_severos = sum(
@@ -3922,6 +3915,244 @@ def _seccion_comparativa_estrategias(
 
 
 # ---------------------------------------------------------------------------
+# Escenarios hipotéticos — 2 gráficas consolidadas
+# ---------------------------------------------------------------------------
+
+# Porcentaje COVID real de ESCENARIOS_HISTORICOS["covid_2020"]
+_COVID_PCT: float = 34.6
+
+# Escenarios fijos para las dos gráficas (pct, etiqueta corta, color)
+_ESCENARIOS_DEF: list[tuple[float, str, str]] = [
+    (5.0,        "+5%",    "#2d8659"),
+    (10.0,       "+10%",   "#e67e00"),
+    (15.0,       "+15%",   "#c0392b"),
+    (_COVID_PCT, "COVID",  "#7b1e1e"),
+]
+
+
+def _fmt_mxn(val: float) -> str:
+    """Formatea un valor MXN como $XM o $XK según magnitud."""
+    if abs(val) >= 1_000_000:
+        return f"${val / 1_000_000:.1f}M"
+    if abs(val) >= 1_000:
+        return f"${val / 1_000:.0f}K"
+    return f"${val:,.0f}"
+
+
+def _grafica_perdida_potencial(resultado: "ResultadoSimulacion") -> "Image":
+    """
+    Gráfica 1: Barras agrupadas «¿Cuánto puedes perder?»
+    Barra roja = pérdida incremental sin cobertura ante depreciación.
+    Barra azul = costo incremental de la cobertura (prima forward + spread), idéntico
+                 al "Costo mensual" al 100% del catálogo de estrategias × 3 meses.
+    plazo_meses = 3 (trimestral).
+    spot_actual = promedio de los spots del backtesting real.
+    """
+    p = resultado.parametros
+    plazo_meses = 3
+    periodos = resultado.periodos
+    n_meses = len(periodos)
+    spot_actual = float(np.mean([per.spot for per in periodos]))
+
+    # Costo incremental mensual forward al 100% — misma fórmula que el catálogo:
+    # (forward_30d - spot_forward_base) × volumen + spread × volumen, promediado por mes.
+    _prima_total = sum(pe.volumen_usd * (pe.forward_30d - pe.spot_forward_base) for pe in periodos)
+    _spread_total = sum(pe.volumen_usd * p.spread_banco for pe in periodos)
+    costo_fwd_mensual = (_prima_total + _spread_total) / n_meses
+    costo_fwd_trimestral = costo_fwd_mensual * plazo_meses
+
+    escenarios = _ESCENARIOS_DEF
+    x = np.arange(len(escenarios))
+    ancho = 0.35
+
+    perdidas_sin = []
+    costos_fwd = []
+    for pct, _, _ in escenarios:
+        spot_nuevo = spot_actual * (1 + pct / 100.0)
+        # Pérdida incremental: lo que pagas extra vs comprar al spot actual
+        perdida = p.volumen_mensual_usd * (spot_nuevo - spot_actual) * plazo_meses
+        perdidas_sin.append(perdida)
+        costos_fwd.append(costo_fwd_trimestral)
+
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+    fig.patch.set_facecolor("white")
+    ax.set_facecolor("#f9fafb")
+    plt.subplots_adjust(top=0.88)
+
+    bars_sin = ax.bar(x - ancho / 2, perdidas_sin, ancho,
+                      color="#C53030", alpha=0.88, label="Pérdida sin cobertura",
+                      edgecolor="white", linewidth=1.0)
+    bars_fwd = ax.bar(x + ancho / 2, costos_fwd, ancho,
+                      color="#1a365d", alpha=0.88, label="Costo con forward",
+                      edgecolor="white", linewidth=1.0)
+
+    y_max = max(perdidas_sin) * 1.18
+    for bar, val in zip(bars_sin, perdidas_sin):
+        ax.text(bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + y_max * 0.01,
+                _fmt_mxn(val), ha="center", va="bottom",
+                fontsize=8.5, fontweight="bold", color="#C53030")
+    for bar, val in zip(bars_fwd, costos_fwd):
+        ax.text(bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + y_max * 0.01,
+                _fmt_mxn(val), ha="center", va="bottom",
+                fontsize=8.5, fontweight="bold", color="#1a365d")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels([e[1] for e in escenarios], fontsize=10)
+    ax.set_ylabel("MXN", fontsize=9, color="#374151")
+    ax.set_ylim(0, y_max)
+    ax.set_title(
+        "¿Cuánto puedes perder?",
+        fontsize=13, fontweight="bold", color="#1a365d", pad=6,
+    )
+    ax.yaxis.set_major_formatter(
+        mticker.FuncFormatter(lambda v, _: _fmt_mxn(v))
+    )
+    ax.legend(fontsize=9, framealpha=0.9, loc="upper left")
+    ax.grid(True, axis="y", alpha=0.25, linestyle="--")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    fig.text(0.5, 0.01,
+             "Horizonte trimestral (3 meses) · volumen mensual del cliente",
+             ha="center", fontsize=8, color="#6b7280")
+    plt.tight_layout(pad=1.5)
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight",
+                facecolor=fig.get_facecolor())
+    plt.close(fig)
+    buf.seek(0)
+    return Image(buf, width=440, height=220)
+
+
+def _grafica_montecarlo_consolidada(resultado: "ResultadoSimulacion") -> "Image":
+    """
+    Gráfica 2: Histograma Monte Carlo con 4 líneas de escenario superpuestas.
+    Usa simular_monte_carlo() con spot = promedio del backtesting y vol histórica.
+    """
+    from core.models.pricing import simular_monte_carlo
+
+    spots = [per.spot for per in resultado.periodos]
+    spot_actual = float(np.mean(spots))
+
+    # Volatilidad histórica estimada a partir de los retornos del backtesting
+    if len(spots) >= 2:
+        retornos = np.diff(np.log(spots))
+        vol_hist = float(np.std(retornos) * np.sqrt(252))
+        vol = max(0.05, min(vol_hist, 0.40))  # clamped a rango razonable
+    else:
+        vol = 0.12
+
+    mc = simular_monte_carlo(spot=spot_actual, dias=90, vol=vol, n_trayectorias=10_000)
+    sims = mc.precios_finales
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    fig.patch.set_facecolor("white")
+    ax.set_facecolor("#f9fafb")
+
+    ax.hist(sims, bins=80, color="#2a4f82", alpha=0.55, edgecolor="none",
+            label="Simulaciones (10,000 trayectorias)")
+
+    # Línea spot actual
+    ax.axvline(spot_actual, color="#e67e00", linewidth=2.0, linestyle="-",
+               label=f"Spot actual: ${spot_actual:.2f}")
+
+    # Líneas de escenario
+    linestyles = ["--", "--", "--", "--"]
+    for (pct, etiqueta, color), ls in zip(_ESCENARIOS_DEF, linestyles):
+        spot_esc = spot_actual * (1 + pct / 100.0)
+        pctil = float((sims < spot_esc).sum()) / len(sims) * 100.0
+        ax.axvline(spot_esc, color=color, linewidth=1.8, linestyle=ls,
+                   label=f"{etiqueta} → ${spot_esc:.2f}  (percentil {pctil:.0f}°)")
+
+    ax.set_xlabel("USD/MXN a 90 días", fontsize=9, color="#374151")
+    ax.set_ylabel("Frecuencia", fontsize=9, color="#374151")
+    ax.set_title(
+        "Distribución Monte Carlo USD/MXN a 90 días (10,000 simulaciones)",
+        fontsize=11, fontweight="bold", color="#1a365d",
+    )
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"${x:.2f}"))
+    ax.legend(fontsize=8, framealpha=0.92, loc="upper right")
+    ax.grid(True, axis="y", alpha=0.2, linestyle="--")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    plt.tight_layout(pad=1.5)
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight",
+                facecolor=fig.get_facecolor())
+    plt.close(fig)
+    buf.seek(0)
+    return Image(buf, width=440, height=220)
+
+
+def _seccion_escenarios_hipoteticos(
+    resultado: "ResultadoSimulacion",
+    estilos: dict,
+) -> list:
+    """
+    Sección de escenarios hipotéticos: 2 gráficas consolidadas.
+    Gráfica 1: barras agrupadas pérdida sin cobertura vs costo forward.
+    Gráfica 2: histograma Monte Carlo con 4 líneas de escenario.
+    """
+    elementos: list = []
+
+    elementos.append(Paragraph("Escenarios Hipotéticos", estilos["encabezado_seccion"]))
+    elementos.append(HRFlowable(width="100%", thickness=1.5, color=AZUL, spaceAfter=4))
+    elementos.append(Paragraph(
+        "¿Qué pasaría si el tipo de cambio se mueve bruscamente? "
+        "Las siguientes gráficas cuantifican la pérdida potencial sin cobertura "
+        "versus el costo de protección con forward, y la probabilidad histórica "
+        "de cada escenario según 10,000 simulaciones Monte Carlo.",
+        estilos["cuerpo"],
+    ))
+    elementos.append(Spacer(1, 0.5 * cm))
+
+    try:
+        img1 = _grafica_perdida_potencial(resultado)
+        elementos.append(Paragraph(
+            "Pérdida potencial sin cobertura vs costo de protección con forward "
+            "(horizonte de 3 meses, basado en volumen mensual del cliente)",
+            ParagraphStyle("esc_sub1", parent=estilos["sub_encabezado"],
+                           spaceAfter=4, textColor=AZUL_MEDIO),
+        ))
+        elementos.append(img1)
+    except Exception as exc:
+        logger.warning("No se pudo generar gráfica de pérdida potencial: %s", exc)
+
+    elementos.append(Spacer(1, 0.6 * cm))
+
+    try:
+        img2 = _grafica_montecarlo_consolidada(resultado)
+        elementos.append(Paragraph(
+            "Distribución de probabilidad del tipo de cambio a 90 días "
+            "(volatilidad estimada del período analizado)",
+            ParagraphStyle("esc_sub2", parent=estilos["sub_encabezado"],
+                           spaceAfter=4, textColor=AZUL_MEDIO),
+        ))
+        elementos.append(img2)
+    except Exception as exc:
+        logger.warning("No se pudo generar gráfica Monte Carlo: %s", exc)
+
+    nota_style = ParagraphStyle(
+        "esc_nota", parent=estilos["cuerpo"],
+        fontSize=7.5, textColor=GRIS, alignment=TA_JUSTIFY,
+    )
+    elementos.append(Spacer(1, 0.4 * cm))
+    elementos.append(HRFlowable(width="100%", thickness=0.5, color=GRIS_CLARO, spaceAfter=4))
+    elementos.append(Paragraph(
+        "Nota: Los escenarios hipotéticos son estimaciones basadas en modelos cuantitativos "
+        "y no constituyen garantía de rendimientos futuros. La simulación Monte Carlo "
+        "utiliza Movimiento Browniano Geométrico con volatilidad histórica del período analizado. "
+        "El costo con forward incluye spread bancario y fee mensual de consultoría HedgePoint.",
+        nota_style,
+    ))
+
+    return elementos
+
+
+# ---------------------------------------------------------------------------
 # Función principal de generación
 # ---------------------------------------------------------------------------
 
@@ -3929,6 +4160,7 @@ def generar_pdf(
     resultado: ResultadoSimulacion,
     ruta_salida: str | Path = "output/reporte_simulacion.pdf",
     multi_plazo: ResultadoMultiPlazo | None = None,
+    comparativa: ResultadoComparativa | None = None,
 ) -> Path:
     """
     Genera el PDF profesional de simulación de ahorro.
@@ -4003,13 +4235,18 @@ def generar_pdf(
     story.extend(_resumen_ejecutivo(resultado, estilos))
     story.append(Spacer(1, 0.4 * cm))
 
-    # 3 — Catálogo de estrategias (Forward / Opciones / Collar × 4 niveles)
-    story.append(PageBreak())
-    story.extend(_catalogo_estrategias(resultado, estilos))
-
-    # 4 — Análisis de Riesgo (sección más importante)
+    # 3 — Análisis de Riesgo
     story.append(PageBreak())
     story.extend(_seccion_analisis_riesgo(resultado, estilos))
+
+    # 4 — Escenarios hipotéticos (solo modo comparativo)
+    if comparativa is not None:
+        story.append(PageBreak())
+        story.extend(_seccion_escenarios_hipoteticos(resultado, estilos))
+
+    # 5 — Catálogo de estrategias (Forward / Opciones / Collar × 4 niveles)
+    story.append(PageBreak())
+    story.extend(_catalogo_estrategias(resultado, estilos))
 
     # 6 — Desglose de costos (solo si hay costos transaccionales configurados)
     hay_costos = p.spread_banco > 0 or p.markup_hedgepoint > 0 or p.fee_mensual > 0

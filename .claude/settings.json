@@ -8,7 +8,10 @@
       "Bash(python -m pytest tests/ -v --tb=short -q)",
       "Bash(python -m py_compile agents/simulator/pdf_generator.py)",
       "Bash(python -m py_compile agents/onboarding/pdf_diagnostic.py)",
-      "Bash(python -m pytest tests/ --ignore=tests/test_interest_rates.py -q)"
+      "Bash(python -m pytest tests/ --ignore=tests/test_interest_rates.py -q)",
+      "Bash(python -m pytest tests/test_simulator_pdf.py -v)",
+      "Bash(python scripts/run_simulation.py --volumen 300000 --margen 15 --year 2024 --estrategia comparativa)",
+      "Bash(python -X utf8 scripts/run_simulation.py --volumen 300000 --margen 15 --year 2024 --estrategia comparativa)"
     ]
   }
 }
