@@ -11,7 +11,9 @@
       "Bash(python -m pytest tests/ --ignore=tests/test_interest_rates.py -q)",
       "Bash(python -m pytest tests/test_simulator_pdf.py -v)",
       "Bash(python scripts/run_simulation.py --volumen 300000 --margen 15 --year 2024 --estrategia comparativa)",
-      "Bash(python -X utf8 scripts/run_simulation.py --volumen 300000 --margen 15 --year 2024 --estrategia comparativa)"
+      "Bash(python -X utf8 scripts/run_simulation.py --volumen 300000 --margen 15 --year 2024 --estrategia comparativa)",
+      "Bash(python -c \"import agents.reports.dashboard; print\\('OK'\\)\")",
+      "Bash(python -m pytest tests/test_dashboard.py tests/test_database_hedges.py tests/test_hedge_strategies.py -q)"
     ]
   }
 }

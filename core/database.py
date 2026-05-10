@@ -99,25 +99,29 @@ def init_db(db_path: Path = DB_PATH) -> None:
                 ON interest_rates (symbol, fecha DESC);
 
             CREATE TABLE IF NOT EXISTS hedges (
-                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-                prospect_id         INTEGER NOT NULL REFERENCES prospects(id),
-                tipo                TEXT    NOT NULL CHECK(tipo IN ('forward', 'put', 'call', 'collar')),
-                monto_usd           REAL    NOT NULL,
-                strike              REAL    NOT NULL,
-                strike_call         REAL,
-                spot_entrada        REAL    NOT NULL,
-                prima_pagada_mxn    REAL    NOT NULL DEFAULT 0,
-                tasa_forward        REAL,
-                fecha_inicio        TEXT    NOT NULL,
-                fecha_vencimiento   TEXT    NOT NULL,
-                fecha_liquidacion   TEXT,
-                estado              TEXT    NOT NULL DEFAULT 'activa'
-                                        CHECK(estado IN ('activa', 'vencida', 'liquidada', 'cancelada')),
-                spot_liquidacion    REAL,
-                pnl_mxn             REAL,
-                notas               TEXT,
-                created_at          TEXT    NOT NULL DEFAULT (datetime('now')),
-                updated_at          TEXT    NOT NULL DEFAULT (datetime('now'))
+                id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+                prospect_id             INTEGER NOT NULL REFERENCES prospects(id),
+                tipo                    TEXT    NOT NULL CHECK(tipo IN ('forward', 'put', 'call', 'collar')),
+                monto_usd               REAL    NOT NULL,
+                strike                  REAL    NOT NULL,
+                strike_call             REAL,
+                spot_entrada            REAL    NOT NULL,
+                prima_pagada_mxn        REAL    NOT NULL DEFAULT 0,
+                tasa_forward            REAL,
+                fecha_inicio            TEXT    NOT NULL,
+                fecha_vencimiento       TEXT    NOT NULL,
+                fecha_liquidacion       TEXT,
+                estado                  TEXT    NOT NULL DEFAULT 'activa'
+                                            CHECK(estado IN ('activa', 'vencida', 'liquidada', 'cancelada')),
+                spot_liquidacion        REAL,
+                pnl_mxn                 REAL,
+                notas                   TEXT,
+                banco_ejecutor          TEXT,
+                spread_banco_centavos   REAL,
+                porcentaje_cobertura    REAL,
+                costo_total_mxn         REAL,
+                created_at              TEXT    NOT NULL DEFAULT (datetime('now')),
+                updated_at              TEXT    NOT NULL DEFAULT (datetime('now'))
             );
 
             CREATE INDEX IF NOT EXISTS idx_hedges_prospect_id
@@ -128,6 +132,75 @@ def init_db(db_path: Path = DB_PATH) -> None:
 
             CREATE INDEX IF NOT EXISTS idx_hedges_fecha_vencimiento
                 ON hedges (fecha_vencimiento);
+
+            CREATE TABLE IF NOT EXISTS hedge_strategies (
+                id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+                prospect_id             INTEGER NOT NULL REFERENCES prospects(id),
+                exposicion_mensual_usd  REAL    NOT NULL,
+                presupuesto_mensual_mxn REAL    NOT NULL,
+                cobertura_minima_pct    REAL    NOT NULL DEFAULT 40,
+                cobertura_maxima_pct    REAL    NOT NULL DEFAULT 85,
+                max_movimientos_mes     INTEGER NOT NULL DEFAULT 3,
+                horizonte_meses         INTEGER NOT NULL DEFAULT 3,
+                tipos_permitidos        TEXT    NOT NULL DEFAULT 'forward,put,collar',
+                ratio_forward_min       REAL    DEFAULT 50,
+                ratio_forward_max       REAL    DEFAULT 70,
+                ratio_opciones_min      REAL    DEFAULT 20,
+                ratio_opciones_max      REAL    DEFAULT 35,
+                ratio_collar_min        REAL    DEFAULT 0,
+                ratio_collar_max        REAL    DEFAULT 20,
+                activa                  INTEGER NOT NULL DEFAULT 1,
+                created_at              TEXT    NOT NULL DEFAULT (datetime('now')),
+                updated_at              TEXT    NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_hedge_strategies_prospect_id
+                ON hedge_strategies (prospect_id);
+
+            CREATE TABLE IF NOT EXISTS hedge_strategy_levels (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                strategy_id     INTEGER NOT NULL REFERENCES hedge_strategies(id),
+                nombre          TEXT    NOT NULL,
+                orden           INTEGER NOT NULL,
+                condicion_tipo  TEXT    NOT NULL CHECK(condicion_tipo IN ('inicio_mes', 'precio_debajo', 'precio_arriba', 'volatilidad', 'combinada')),
+                condicion_valor REAL,
+                condicion_extra TEXT,
+                accion_tipo     TEXT    NOT NULL CHECK(accion_tipo IN ('forward', 'put', 'collar')),
+                accion_pct      REAL    NOT NULL,
+                estado          TEXT    NOT NULL DEFAULT 'esperando' CHECK(estado IN ('esperando', 'ejecutado', 'cancelado')),
+                fecha_ejecucion TEXT,
+                hedge_id        INTEGER REFERENCES hedges(id),
+                created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_strategy_levels_strategy_id
+                ON hedge_strategy_levels (strategy_id);
+
+            CREATE TABLE IF NOT EXISTS hedge_pending (
+                id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+                prospect_id             INTEGER NOT NULL REFERENCES prospects(id),
+                tipo                    TEXT,
+                monto_usd               REAL,
+                strike                  REAL,
+                strike_call             REAL,
+                spot_entrada            REAL,
+                prima_pagada_mxn        REAL,
+                fecha_inicio            TEXT,
+                fecha_vencimiento       TEXT,
+                banco_ejecutor          TEXT,
+                spread_banco_centavos   REAL,
+                estado                  TEXT NOT NULL DEFAULT 'pendiente'
+                                            CHECK(estado IN ('pendiente', 'aprobada', 'rechazada')),
+                notas                   TEXT,
+                documento_nombre        TEXT,
+                created_at              TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_hedge_pending_prospect_id
+                ON hedge_pending (prospect_id);
+
+            CREATE INDEX IF NOT EXISTS idx_hedge_pending_estado
+                ON hedge_pending (estado);
         """)
 
 
@@ -429,6 +502,7 @@ _HEDGE_COLUMNS = frozenset({
     "spot_entrada", "prima_pagada_mxn", "tasa_forward",
     "fecha_inicio", "fecha_vencimiento", "fecha_liquidacion",
     "estado", "spot_liquidacion", "pnl_mxn", "notas",
+    "banco_ejecutor", "spread_banco_centavos", "porcentaje_cobertura", "costo_total_mxn",
 })
 
 _TIPOS_VALIDOS = {"forward", "put", "call", "collar"}
@@ -592,6 +666,127 @@ def get_expiring_hedges(dias: int = 7, db_path: Path = DB_PATH) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+# ---------------------------------------------------------------------------
+# Hedge Strategies
+# ---------------------------------------------------------------------------
+
+_STRATEGY_COLUMNS = frozenset({
+    "prospect_id", "exposicion_mensual_usd", "presupuesto_mensual_mxn",
+    "cobertura_minima_pct", "cobertura_maxima_pct", "max_movimientos_mes",
+    "horizonte_meses", "tipos_permitidos",
+    "ratio_forward_min", "ratio_forward_max",
+    "ratio_opciones_min", "ratio_opciones_max",
+    "ratio_collar_min", "ratio_collar_max",
+    "activa",
+})
+
+
+def insert_hedge_strategy(data: dict, db_path: Path = DB_PATH) -> int:
+    """Inserta una estrategia de cobertura y retorna el rowid."""
+    allowed = {k: v for k, v in data.items() if k in _STRATEGY_COLUMNS}
+    cols = ", ".join(allowed.keys())
+    placeholders = ", ".join(f":{k}" for k in allowed.keys())
+    sql = f"INSERT INTO hedge_strategies ({cols}) VALUES ({placeholders})"
+    with get_connection(db_path) as conn:
+        cur = conn.execute(sql, allowed)
+        return cur.lastrowid
+
+
+def get_hedge_strategy(strategy_id: int, db_path: Path = DB_PATH) -> Optional[dict]:
+    """Retorna una estrategia por ID, o None si no existe."""
+    sql = "SELECT * FROM hedge_strategies WHERE id = ?"
+    with get_connection(db_path) as conn:
+        row = conn.execute(sql, (strategy_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def get_client_strategy(prospect_id: int, db_path: Path = DB_PATH) -> Optional[dict]:
+    """Retorna la estrategia activa de un cliente, o None si no existe."""
+    sql = """
+        SELECT * FROM hedge_strategies
+        WHERE prospect_id = ? AND activa = 1
+        ORDER BY created_at DESC
+        LIMIT 1
+    """
+    with get_connection(db_path) as conn:
+        row = conn.execute(sql, (prospect_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def update_hedge_strategy(
+    strategy_id: int,
+    data: dict,
+    db_path: Path = DB_PATH,
+) -> bool:
+    """Actualiza campos de una estrategia y renueva updated_at."""
+    allowed = {k: v for k, v in data.items() if k in _STRATEGY_COLUMNS}
+    if not allowed:
+        return False
+    set_clause = ", ".join(f"{k} = :{k}" for k in allowed.keys())
+    sql = f"""
+        UPDATE hedge_strategies
+        SET {set_clause}, updated_at = datetime('now')
+        WHERE id = :_id
+    """
+    allowed["_id"] = strategy_id
+    with get_connection(db_path) as conn:
+        cur = conn.execute(sql, allowed)
+        return cur.rowcount > 0
+
+
+# ---------------------------------------------------------------------------
+# Hedge Strategy Levels
+# ---------------------------------------------------------------------------
+
+_LEVEL_COLUMNS = frozenset({
+    "strategy_id", "nombre", "orden", "condicion_tipo", "condicion_valor",
+    "condicion_extra", "accion_tipo", "accion_pct", "estado",
+    "fecha_ejecucion", "hedge_id",
+})
+
+
+def insert_strategy_level(data: dict, db_path: Path = DB_PATH) -> int:
+    """Inserta un nivel de estrategia y retorna el rowid."""
+    allowed = {k: v for k, v in data.items() if k in _LEVEL_COLUMNS}
+    cols = ", ".join(allowed.keys())
+    placeholders = ", ".join(f":{k}" for k in allowed.keys())
+    sql = f"INSERT INTO hedge_strategy_levels ({cols}) VALUES ({placeholders})"
+    with get_connection(db_path) as conn:
+        cur = conn.execute(sql, allowed)
+        return cur.lastrowid
+
+
+def get_strategy_levels(strategy_id: int, db_path: Path = DB_PATH) -> list[dict]:
+    """Retorna los niveles de una estrategia, ordenados por orden ascendente."""
+    sql = """
+        SELECT * FROM hedge_strategy_levels
+        WHERE strategy_id = ?
+        ORDER BY orden ASC
+    """
+    with get_connection(db_path) as conn:
+        rows = conn.execute(sql, (strategy_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def update_level_status(
+    level_id: int,
+    estado: str,
+    hedge_id: Optional[int] = None,
+    db_path: Path = DB_PATH,
+) -> bool:
+    """Actualiza el estado de un nivel y opcionalmente registra el hedge ejecutado."""
+    sql = """
+        UPDATE hedge_strategy_levels
+        SET estado          = ?,
+            hedge_id        = COALESCE(?, hedge_id),
+            fecha_ejecucion = CASE WHEN ? = 'ejecutado' THEN datetime('now') ELSE fecha_ejecucion END
+        WHERE id = ?
+    """
+    with get_connection(db_path) as conn:
+        cur = conn.execute(sql, (estado, hedge_id, estado, level_id))
+        return cur.rowcount > 0
+
+
 def update_prospect_diagnostic(
     prospect_id: int,
     exposicion: float,
@@ -625,4 +820,63 @@ def update_prospect_diagnostic(
     """
     with get_connection(db_path) as conn:
         cur = conn.execute(sql, (exposicion, var_95, ahorro, estrategia, prospect_id))
+        return cur.rowcount > 0
+
+
+# ---------------------------------------------------------------------------
+# Hedge pending
+# ---------------------------------------------------------------------------
+
+_HEDGE_PENDING_COLUMNS = frozenset({
+    "prospect_id", "tipo", "monto_usd", "strike", "strike_call",
+    "spot_entrada", "prima_pagada_mxn", "fecha_inicio", "fecha_vencimiento",
+    "banco_ejecutor", "spread_banco_centavos", "estado", "notas", "documento_nombre",
+})
+
+
+def insert_hedge_pending(data: dict, db_path: Path = DB_PATH) -> int:
+    """Inserta una cobertura pendiente de aprobación. Retorna el id insertado."""
+    cols = [k for k in data if k in _HEDGE_PENDING_COLUMNS]
+    placeholders = ", ".join("?" * len(cols))
+    col_names = ", ".join(cols)
+    values = [data[c] for c in cols]
+    sql = f"INSERT INTO hedge_pending ({col_names}) VALUES ({placeholders})"
+    with get_connection(db_path) as conn:
+        cur = conn.execute(sql, values)
+        return cur.lastrowid
+
+
+def get_pending_hedges(estado: str = "pendiente", db_path: Path = DB_PATH) -> list[dict]:
+    """Retorna todas las coberturas pendientes con el estado dado."""
+    sql = "SELECT * FROM hedge_pending WHERE estado = ? ORDER BY created_at DESC"
+    with get_connection(db_path) as conn:
+        rows = conn.execute(sql, (estado,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_client_pending_hedges(
+    prospect_id: int,
+    estado: str = "pendiente",
+    db_path: Path = DB_PATH,
+) -> list[dict]:
+    """Retorna las coberturas pendientes de un cliente con el estado dado."""
+    sql = "SELECT * FROM hedge_pending WHERE prospect_id = ? AND estado = ? ORDER BY created_at DESC"
+    with get_connection(db_path) as conn:
+        rows = conn.execute(sql, (prospect_id, estado)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_pending_hedge(pending_id: int, db_path: Path = DB_PATH) -> Optional[dict]:
+    """Retorna una cobertura pendiente por su id, o None si no existe."""
+    sql = "SELECT * FROM hedge_pending WHERE id = ?"
+    with get_connection(db_path) as conn:
+        row = conn.execute(sql, (pending_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def update_pending_status(pending_id: int, estado: str, db_path: Path = DB_PATH) -> bool:
+    """Actualiza el estado de una cobertura pendiente. Retorna True si se actualizó."""
+    sql = "UPDATE hedge_pending SET estado = ? WHERE id = ?"
+    with get_connection(db_path) as conn:
+        cur = conn.execute(sql, (estado, pending_id))
         return cur.rowcount > 0

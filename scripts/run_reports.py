@@ -51,26 +51,22 @@ _DEMO_SEED = 42
 # ---------------------------------------------------------------------------
 
 def _crear_bd_demo(db_path: Path) -> int:
-    """Inicializa la BD demo y retorna el prospect_id insertado."""
-    from core.database import init_db, insert_prospect, insert_fx_rate, insert_hedge
+    """Inicializa la BD demo con 4 clientes, hedges, estrategias y niveles.
+
+    Retorna el prospect_id del primer cliente (AceroMX), que se usa como
+    cliente principal para la generación del PDF demo.
+    """
+    from core.database import (
+        init_db, insert_prospect, insert_fx_rate, insert_hedge,
+        insert_hedge_strategy, insert_strategy_level, update_level_status,
+    )
 
     if db_path.exists():
         db_path.unlink()
 
     init_db(db_path)
 
-    prospect_id = insert_prospect(
-        {
-            "nombre_enc":          "Carlos Demo",
-            "empresa_enc":         "Importadora Demo S.A.",
-            "sector":              "Importador",
-            "volumen_usd_mensual": 300_000,
-            "margen_utilidad":     0.15,
-            "status":              "diagnosticado",
-        },
-        db_path=db_path,
-    )
-
+    # ── FX histórico (30 días, compartido por todos los clientes) ──────────
     rng = random.Random(_DEMO_SEED)
     hoy = date.today()
     bid = 20.00
@@ -85,29 +81,228 @@ def _crear_bd_demo(db_path: Path) -> int:
         )
 
     hoy_iso = hoy.isoformat()
-    insert_hedge(
-        {"prospect_id": prospect_id, "tipo": "forward", "monto_usd": 100_000.0,
-         "strike": 20.10, "spot_entrada": 20.00, "tasa_forward": 20.10,
+
+    # Si hay key de encriptación, encriptar; si no, guardar en claro para demo
+    def _enc(value: str) -> str:
+        if not os.getenv("HEDGEPOINT_ENCRYPTION_KEY"):
+            return value
+        try:
+            from core.security.anonymizer import FieldEncryptor
+            return FieldEncryptor().encrypt(value)
+        except Exception:
+            return value
+
+    # ── Cliente 1: AceroMX ─────────────────────────────────────────────────
+    pid_acero = insert_prospect(
+        {
+            "nombre_enc":          _enc("Carlos Mendoza"),
+            "empresa_enc":         _enc("AceroMX"),
+            "sector":              "manufactura",
+            "volumen_usd_mensual": 500_000,
+            "margen_utilidad":     0.12,
+            "status":              "diagnosticado",
+        },
+        db_path=db_path,
+    )
+    hid_acero_1 = insert_hedge(
+        {"prospect_id": pid_acero, "tipo": "forward", "monto_usd": 200_000.0,
+         "strike": 19.80, "spot_entrada": 19.65, "tasa_forward": 19.82,
          "prima_pagada_mxn": 0.0, "fecha_inicio": hoy_iso,
-         "fecha_vencimiento": (hoy + timedelta(days=45)).isoformat()},
+         "fecha_vencimiento": (hoy + timedelta(days=45)).isoformat(),
+         "banco_ejecutor": "Banco Base", "spread_banco_centavos": 6.0,
+         "porcentaje_cobertura": 40.0, "costo_total_mxn": 0.0},
+        db_path=db_path,
+    )
+    hid_acero_2 = insert_hedge(
+        {"prospect_id": pid_acero, "tipo": "forward", "monto_usd": 75_000.0,
+         "strike": 19.50, "spot_entrada": 19.40, "tasa_forward": 19.52,
+         "prima_pagada_mxn": 0.0, "fecha_inicio": hoy_iso,
+         "fecha_vencimiento": (hoy + timedelta(days=20)).isoformat(),
+         "banco_ejecutor": "Monex", "spread_banco_centavos": 5.0,
+         "porcentaje_cobertura": 15.0, "costo_total_mxn": 0.0},
         db_path=db_path,
     )
     insert_hedge(
-        {"prospect_id": prospect_id, "tipo": "put", "monto_usd": 80_000.0,
-         "strike": 20.00, "spot_entrada": 19.90, "prima_pagada_mxn": 12_000.0,
+        {"prospect_id": pid_acero, "tipo": "put", "monto_usd": 75_000.0,
+         "strike": 19.00, "spot_entrada": 19.40, "prima_pagada_mxn": 18_750.0,
          "fecha_inicio": hoy_iso,
-         "fecha_vencimiento": (hoy + timedelta(days=15)).isoformat()},
-        db_path=db_path,
-    )
-    insert_hedge(
-        {"prospect_id": prospect_id, "tipo": "collar", "monto_usd": 120_000.0,
-         "strike": 19.80, "strike_call": 20.80, "spot_entrada": 20.05,
-         "prima_pagada_mxn": 8_000.0, "fecha_inicio": hoy_iso,
-         "fecha_vencimiento": (hoy + timedelta(days=60)).isoformat()},
+         "fecha_vencimiento": (hoy + timedelta(days=75)).isoformat(),
+         "banco_ejecutor": "Banco Base", "spread_banco_centavos": 7.0,
+         "porcentaje_cobertura": 15.0, "costo_total_mxn": 20_250.0},
         db_path=db_path,
     )
 
-    return prospect_id
+    sid_acero = insert_hedge_strategy(
+        {"prospect_id": pid_acero, "exposicion_mensual_usd": 500_000.0,
+         "presupuesto_mensual_mxn": 180_000.0,
+         "cobertura_minima_pct": 40.0, "cobertura_maxima_pct": 85.0,
+         "max_movimientos_mes": 3, "horizonte_meses": 3,
+         "tipos_permitidos": "forward,put,collar",
+         "ratio_forward_min": 50.0, "ratio_forward_max": 70.0,
+         "ratio_opciones_min": 20.0, "ratio_opciones_max": 35.0,
+         "ratio_collar_min": 0.0, "ratio_collar_max": 20.0},
+        db_path=db_path,
+    )
+    lid_base = insert_strategy_level(
+        {"strategy_id": sid_acero, "nombre": "Base", "orden": 1,
+         "condicion_tipo": "inicio_mes", "accion_tipo": "forward",
+         "accion_pct": 40.0, "hedge_id": hid_acero_1},
+        db_path=db_path,
+    )
+    update_level_status(lid_base, "ejecutado", hedge_id=hid_acero_1, db_path=db_path)
+
+    lid_n1 = insert_strategy_level(
+        {"strategy_id": sid_acero, "nombre": "Nivel 1", "orden": 2,
+         "condicion_tipo": "precio_debajo", "condicion_valor": 19.50,
+         "accion_tipo": "forward", "accion_pct": 15.0, "hedge_id": hid_acero_2},
+        db_path=db_path,
+    )
+    update_level_status(lid_n1, "ejecutado", hedge_id=hid_acero_2, db_path=db_path)
+
+    insert_strategy_level(
+        {"strategy_id": sid_acero, "nombre": "Nivel 2", "orden": 3,
+         "condicion_tipo": "precio_debajo", "condicion_valor": 19.00,
+         "accion_tipo": "put", "accion_pct": 15.0},
+        db_path=db_path,
+    )
+    insert_strategy_level(
+        {"strategy_id": sid_acero, "nombre": "Nivel 3", "orden": 4,
+         "condicion_tipo": "combinada", "condicion_valor": 18.80,
+         "condicion_extra": '{"volatilidad_max": 10.0}',
+         "accion_tipo": "collar", "accion_pct": 15.0},
+        db_path=db_path,
+    )
+
+    # ── Cliente 2: ElectroImport ───────────────────────────────────────────
+    pid_electro = insert_prospect(
+        {
+            "nombre_enc":          _enc("Laura Ríos"),
+            "empresa_enc":         _enc("ElectroImport"),
+            "sector":              "importador",
+            "volumen_usd_mensual": 200_000,
+            "margen_utilidad":     0.18,
+            "status":              "diagnosticado",
+        },
+        db_path=db_path,
+    )
+    insert_hedge(
+        {"prospect_id": pid_electro, "tipo": "forward", "monto_usd": 60_000.0,
+         "strike": 19.90, "spot_entrada": 19.75, "tasa_forward": 19.92,
+         "prima_pagada_mxn": 0.0, "fecha_inicio": hoy_iso,
+         "fecha_vencimiento": (hoy + timedelta(days=30)).isoformat(),
+         "banco_ejecutor": "Banco Base", "spread_banco_centavos": 6.0,
+         "porcentaje_cobertura": 30.0, "costo_total_mxn": 0.0},
+        db_path=db_path,
+    )
+    insert_hedge(
+        {"prospect_id": pid_electro, "tipo": "put", "monto_usd": 50_000.0,
+         "strike": 19.50, "spot_entrada": 19.75, "prima_pagada_mxn": 9_000.0,
+         "fecha_inicio": hoy_iso,
+         "fecha_vencimiento": (hoy + timedelta(days=60)).isoformat(),
+         "banco_ejecutor": "Monex", "spread_banco_centavos": 5.0,
+         "porcentaje_cobertura": 25.0, "costo_total_mxn": 11_500.0},
+        db_path=db_path,
+    )
+
+    insert_hedge_strategy(
+        {"prospect_id": pid_electro, "exposicion_mensual_usd": 200_000.0,
+         "presupuesto_mensual_mxn": 80_000.0,
+         "cobertura_minima_pct": 30.0, "cobertura_maxima_pct": 75.0,
+         "max_movimientos_mes": 2, "horizonte_meses": 3,
+         "tipos_permitidos": "forward,put,collar",
+         "ratio_forward_min": 50.0, "ratio_forward_max": 70.0,
+         "ratio_opciones_min": 20.0, "ratio_opciones_max": 35.0,
+         "ratio_collar_min": 0.0, "ratio_collar_max": 20.0},
+        db_path=db_path,
+    )
+
+    # ── Cliente 3: PlásticosMTY ────────────────────────────────────────────
+    pid_plasticos = insert_prospect(
+        {
+            "nombre_enc":          _enc("Roberto García"),
+            "empresa_enc":         _enc("PlásticosMTY"),
+            "sector":              "manufactura",
+            "volumen_usd_mensual": 300_000,
+            "margen_utilidad":     0.14,
+            "status":              "diagnosticado",
+        },
+        db_path=db_path,
+    )
+    insert_hedge(
+        {"prospect_id": pid_plasticos, "tipo": "collar", "monto_usd": 120_000.0,
+         "strike": 19.70, "strike_call": 20.70, "spot_entrada": 20.05,
+         "prima_pagada_mxn": 8_400.0, "fecha_inicio": hoy_iso,
+         "fecha_vencimiento": (hoy + timedelta(days=60)).isoformat(),
+         "banco_ejecutor": "Banco Base", "spread_banco_centavos": 7.0,
+         "porcentaje_cobertura": 40.0, "costo_total_mxn": 10_800.0},
+        db_path=db_path,
+    )
+    insert_hedge(
+        {"prospect_id": pid_plasticos, "tipo": "forward", "monto_usd": 80_000.0,
+         "strike": 20.00, "spot_entrada": 19.90, "tasa_forward": 20.02,
+         "prima_pagada_mxn": 0.0, "fecha_inicio": hoy_iso,
+         "fecha_vencimiento": (hoy + timedelta(days=90)).isoformat(),
+         "banco_ejecutor": "Banco Base", "spread_banco_centavos": 8.0,
+         "porcentaje_cobertura": 26.7, "costo_total_mxn": 0.0},
+        db_path=db_path,
+    )
+
+    insert_hedge_strategy(
+        {"prospect_id": pid_plasticos, "exposicion_mensual_usd": 300_000.0,
+         "presupuesto_mensual_mxn": 120_000.0,
+         "cobertura_minima_pct": 40.0, "cobertura_maxima_pct": 80.0,
+         "max_movimientos_mes": 3, "horizonte_meses": 3,
+         "tipos_permitidos": "forward,put,collar",
+         "ratio_forward_min": 50.0, "ratio_forward_max": 70.0,
+         "ratio_opciones_min": 20.0, "ratio_opciones_max": 35.0,
+         "ratio_collar_min": 0.0, "ratio_collar_max": 20.0},
+        db_path=db_path,
+    )
+
+    # ── Cliente 4: LogiNorte ───────────────────────────────────────────────
+    pid_logi = insert_prospect(
+        {
+            "nombre_enc":          _enc("Ana Villanueva"),
+            "empresa_enc":         _enc("LogiNorte"),
+            "sector":              "logistica",
+            "volumen_usd_mensual": 150_000,
+            "margen_utilidad":     0.10,
+            "status":              "diagnosticado",
+        },
+        db_path=db_path,
+    )
+    insert_hedge(
+        {"prospect_id": pid_logi, "tipo": "forward", "monto_usd": 60_000.0,
+         "strike": 19.95, "spot_entrada": 19.80, "tasa_forward": 19.97,
+         "prima_pagada_mxn": 0.0, "fecha_inicio": hoy_iso,
+         "fecha_vencimiento": (hoy + timedelta(days=45)).isoformat(),
+         "banco_ejecutor": "Banco Base", "spread_banco_centavos": 6.0,
+         "porcentaje_cobertura": 40.0, "costo_total_mxn": 0.0},
+        db_path=db_path,
+    )
+    insert_hedge(
+        {"prospect_id": pid_logi, "tipo": "put", "monto_usd": 30_000.0,
+         "strike": 19.50, "spot_entrada": 19.80, "prima_pagada_mxn": 6_000.0,
+         "fecha_inicio": hoy_iso,
+         "fecha_vencimiento": (hoy + timedelta(days=30)).isoformat(),
+         "banco_ejecutor": "Banco Base", "spread_banco_centavos": 7.0,
+         "porcentaje_cobertura": 20.0, "costo_total_mxn": 7_200.0},
+        db_path=db_path,
+    )
+
+    insert_hedge_strategy(
+        {"prospect_id": pid_logi, "exposicion_mensual_usd": 150_000.0,
+         "presupuesto_mensual_mxn": 60_000.0,
+         "cobertura_minima_pct": 40.0, "cobertura_maxima_pct": 70.0,
+         "max_movimientos_mes": 2, "horizonte_meses": 3,
+         "tipos_permitidos": "forward,put,collar",
+         "ratio_forward_min": 50.0, "ratio_forward_max": 70.0,
+         "ratio_opciones_min": 20.0, "ratio_opciones_max": 35.0,
+         "ratio_collar_min": 0.0, "ratio_collar_max": 20.0},
+        db_path=db_path,
+    )
+
+    return pid_acero
 
 
 # ---------------------------------------------------------------------------

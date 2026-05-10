@@ -200,11 +200,15 @@ class TestAuth:
 
 class TestRutasAutenticadas:
     def test_raiz_muestra_lista_de_clientes(self, client: TestClient):
-        resp = client.get("/", cookies=_authed_cookies())
-        assert resp.status_code == 200
+        # / es el dashboard de KPIs; la lista de clientes está en /clientes
+        resp_root = client.get("/", cookies=_authed_cookies())
+        assert resp_root.status_code == 200
+
+        resp_clientes = client.get("/clientes", cookies=_authed_cookies())
+        assert resp_clientes.status_code == 200
         # Sin HEDGEPOINT_ENCRYPTION_KEY el campo empresa muestra el fallback "Cliente {id}"
-        assert "Cliente 1" in resp.text or "Empresa Test" in resp.text
-        assert "Exportador" in resp.text
+        assert "Cliente 1" in resp_clientes.text or "Empresa Test" in resp_clientes.text
+        assert "Exportador" in resp_clientes.text
 
     def test_raiz_muestra_spot_actual(self, client: TestClient):
         resp = client.get("/", cookies=_authed_cookies())

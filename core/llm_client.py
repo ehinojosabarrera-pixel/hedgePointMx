@@ -436,6 +436,99 @@ INSTRUCCIONES:
             return _FALLBACK_SCENARIO
 
     # ------------------------------------------------------------------
+    # Hedge document parsing
+    # ------------------------------------------------------------------
+
+    def parse_hedge_document(self, text_content: str) -> dict:
+        """Extract hedge confirmation fields from bank document text.
+
+        Sends the document text to Claude with a strict JSON-only prompt.
+        Safe to call without anonymization — the document itself contains
+        no client PII managed by HedgePoint, only bank-issued trade terms.
+
+        Parameters
+        ----------
+        text_content : str
+            Raw text extracted from the PDF or image of the bank confirmation.
+
+        Returns
+        -------
+        dict
+            Keys: tipo, monto_usd, strike, strike_call, prima_pagada_mxn,
+            fecha_inicio, fecha_vencimiento, banco_ejecutor, spot_entrada,
+            spread_banco_centavos.  Any unrecognized field is None.
+            Returns all-None dict on API failure.
+        """
+        _empty: dict = {
+            "tipo": None, "monto_usd": None, "strike": None,
+            "strike_call": None, "prima_pagada_mxn": None,
+            "fecha_inicio": None, "fecha_vencimiento": None,
+            "banco_ejecutor": None, "spot_entrada": None,
+            "spread_banco_centavos": None,
+        }
+
+        system_prompt = (
+            "Eres un extractor de datos de documentos de confirmación de coberturas "
+            "cambiarias emitidos por bancos mexicanos. Tu única tarea es leer el "
+            "documento y devolver un JSON con los campos de la operación.\n\n"
+            "REGLAS:\n"
+            "- Responde ÚNICAMENTE con JSON válido, sin texto adicional, sin markdown, "
+            "sin backticks.\n"
+            "- Si un campo no aparece en el documento, usa null.\n"
+            "- Montos en notación mexicana: coma = separador de miles, punto = decimal.\n"
+            "- Fechas en formato YYYY-MM-DD.\n"
+            "- tipo debe ser exactamente uno de: forward, put, call, collar.\n"
+            "- Bancos mexicanos comunes: BBVA, Banorte, Banco Base, Monex, "
+            "Citibanamex, Santander, HSBC.\n\n"
+            "CAMPOS A EXTRAER (JSON con estas keys exactas):\n"
+            '{\n'
+            '  "tipo": "forward|put|call|collar",\n'
+            '  "monto_usd": <número>,\n'
+            '  "strike": <tipo de cambio pactado, número>,\n'
+            '  "strike_call": <solo para collar, número o null>,\n'
+            '  "prima_pagada_mxn": <prima en MXN, 0 para forwards>,\n'
+            '  "fecha_inicio": "YYYY-MM-DD",\n'
+            '  "fecha_vencimiento": "YYYY-MM-DD",\n'
+            '  "banco_ejecutor": "nombre del banco",\n'
+            '  "spot_entrada": <spot al momento si aparece, número o null>,\n'
+            '  "spread_banco_centavos": <spread en centavos/USD si se puede calcular, número o null>\n'
+            "}"
+        )
+
+        try:
+            message = self._client.messages.create(
+                model=self._model,
+                max_tokens=500,
+                timeout=_TIMEOUT_SECONDS,
+                system=system_prompt,
+                messages=[{"role": "user", "content": text_content}],
+            )
+            raw = message.content[0].text.strip()
+            # Limpiar backticks markdown que Claude a veces incluye
+            if "```" in raw:
+                import re
+                match = re.search(r'```(?:json)?\s*(.*?)\s*```', raw, re.DOTALL)
+                if match:
+                    raw = match.group(1).strip()
+            # Si aún no empieza con {, intentar encontrar el primer {
+            if not raw.startswith("{"):
+                idx = raw.find("{")
+                if idx != -1:
+                    raw = raw[idx:]
+            # Truncar después del último }
+            if raw.rfind("}") != -1:
+                raw = raw[:raw.rfind("}") + 1]
+            parsed = json.loads(raw)
+            # Merge with empty template so all keys are always present
+            return {**_empty, **parsed}
+        except json.JSONDecodeError as exc:
+            logger.warning("parse_hedge_document: JSON inválido en respuesta: %s", exc)
+            return _empty
+        except Exception as exc:
+            logger.error("Error al llamar a Claude API (parse_hedge_document): %s", exc)
+            return _empty
+
+    # ------------------------------------------------------------------
     # Report recommendations
     # ------------------------------------------------------------------
 
