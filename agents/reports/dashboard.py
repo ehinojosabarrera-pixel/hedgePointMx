@@ -553,11 +553,11 @@ def _sidebar_html(active: str, role: str = "consultor", portal_pid: Optional[int
         _pending_label = f'Pendientes <span style="background:var(--accent-orange);color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">{_n_pending}</span>' if _n_pending else "Pendientes"
         nav_items = f"""
     <div class="nav-section">Principal</div>
-    {_item("layout-dashboard", "Dashboard", "/", "dashboard")}
-    {_item("users", "Clientes", "/clientes", "clientes")}
-    {_item("trending-up", "Mercado", "/mercado", "mercado")}
+    {_item("layout-dashboard", "Dashboard", "/dashboard/", "dashboard")}
+    {_item("users", "Clientes", "/dashboard/clientes", "clientes")}
+    {_item("trending-up", "Mercado", "/dashboard/mercado", "mercado")}
     <div class="nav-section">Operaciones</div>
-    {_item("plus-circle", "Registrar Cobertura", "/registro", "registro")}
+    {_item("plus-circle", "Registrar Cobertura", "/dashboard/registro", "registro")}
     <a href="/dashboard/pendientes" class="nav-item {'active' if active == 'pendientes' else ''}">\
 <i class="ti ti-clock"></i>{_pending_label}</a>"""
     else:
@@ -566,9 +566,9 @@ def _sidebar_html(active: str, role: str = "consultor", portal_pid: Optional[int
         tok = _token_cliente(pid)
         nav_items = f"""
     <div class="nav-section">Portal cliente</div>
-    {_item("layout-dashboard", "Resumen", f"/portal/{pid}?token={tok}", "portal-resumen")}
-    {_item("shield-check", "Coberturas", f"/portal/{pid}/coberturas?token={tok}", "portal-coberturas")}
-    {_item("stairs", "Estrategia", f"/portal/{pid}/estrategia?token={tok}", "portal-estrategia")}"""
+    {_item("layout-dashboard", "Resumen", f"/dashboard/portal/{pid}?token={tok}", "portal-resumen")}
+    {_item("shield-check", "Coberturas", f"/dashboard/portal/{pid}/coberturas?token={tok}", "portal-coberturas")}
+    {_item("stairs", "Estrategia", f"/dashboard/portal/{pid}/estrategia?token={tok}", "portal-estrategia")}"""
 
     # Toggle destino: al cambiar a Cliente, va al portal del primer cliente disponible
     first_pid = portal_pid
