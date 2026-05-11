@@ -1,0 +1,16 @@
+[Unit]
+Description=HedgePoint Scheduler (reportes periódicos)
+After=network.target
+
+[Service]
+Type=simple
+User=hedgepoint
+WorkingDirectory=/home/hedgepoint/app
+EnvironmentFile=/home/hedgepoint/app/.env
+Environment="PATH=/home/hedgepoint/app/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/hedgepoint/app/venv/bin/python scripts/scheduler.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
