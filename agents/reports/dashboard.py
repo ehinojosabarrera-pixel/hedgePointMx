@@ -71,7 +71,7 @@ from core.models.hedge_pnl import resumen_pnl_cliente, calcular_pnl_todos_client
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="HedgePoint MX", docs_url=None, redoc_url=None, root_path="/dashboard")
+app = FastAPI(title="HedgePoint MX", docs_url=None, redoc_url=None)
 
 
 def _prefix(path: str) -> str:
