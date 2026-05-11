@@ -71,7 +71,11 @@ from core.models.hedge_pnl import resumen_pnl_cliente, calcular_pnl_todos_client
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="HedgePoint MX", docs_url=None, redoc_url=None)
+app = FastAPI(title="HedgePoint MX", docs_url=None, redoc_url=None, root_path="/dashboard")
+
+
+def _prefix(path: str) -> str:
+    return "/dashboard" + path
 
 _DEFAULT_PWD = "hedgepoint2026"
 
@@ -102,7 +106,7 @@ def _portal_valido(prospect_id: int, token: Optional[str]) -> bool:
 
 
 def _redirect_login() -> RedirectResponse:
-    return RedirectResponse(url="/login", status_code=302)
+    return RedirectResponse(url=_prefix("/login"), status_code=302)
 
 
 def _db() -> Path:
@@ -554,7 +558,7 @@ def _sidebar_html(active: str, role: str = "consultor", portal_pid: Optional[int
     {_item("trending-up", "Mercado", "/mercado", "mercado")}
     <div class="nav-section">Operaciones</div>
     {_item("plus-circle", "Registrar Cobertura", "/registro", "registro")}
-    <a href="/pendientes" class="nav-item {'active' if active == 'pendientes' else ''}">\
+    <a href="/dashboard/pendientes" class="nav-item {'active' if active == 'pendientes' else ''}">\
 <i class="ti ti-clock"></i>{_pending_label}</a>"""
     else:
         # Vista cliente: rutas del portal del primer cliente disponible
@@ -593,10 +597,10 @@ def _sidebar_html(active: str, role: str = "consultor", portal_pid: Optional[int
   </nav>
   <div class="sidebar-footer">
     <div class="role-toggle">
-      <a href="/" class="role-btn {consultor_active}">Consultor</a>
+      <a href="/dashboard/" class="role-btn {consultor_active}">Consultor</a>
       {cliente_btn}
     </div>
-    <a href="/logout" class="nav-item" style="font-size:12px">
+    <a href="/dashboard/logout" class="nav-item" style="font-size:12px">
       <i class="ti ti-logout"></i>Salir
     </a>
   </div>
@@ -719,7 +723,7 @@ def get_login(error: str = ""):
       </div>
     </div>
     {err_html}
-    <form method="post" action="/login">
+    <form method="post" action="/dashboard/login">
       <div class="field" style="margin-bottom:14px">
         <label>Contraseña</label>
         <input type="password" name="password" autofocus placeholder="Ingresa la contraseña">
@@ -741,10 +745,10 @@ def get_login(error: str = ""):
 def post_login(password: str = Form(...)):
     expected_pwd = os.getenv("DASHBOARD_PASSWORD", _DEFAULT_PWD)
     if password == expected_pwd:
-        resp = RedirectResponse(url="/", status_code=302)
+        resp = RedirectResponse(url=_prefix("/"), status_code=302)
         resp.set_cookie("session_token", _token_esperado(), httponly=True, samesite="lax")
         return resp
-    return RedirectResponse(url="/login?error=Contraseña+incorrecta", status_code=302)
+    return RedirectResponse(url=_prefix("/login?error=Contraseña+incorrecta"), status_code=302)
 
 
 # ---------------------------------------------------------------------------
@@ -753,7 +757,7 @@ def post_login(password: str = Form(...)):
 
 @app.get("/logout")
 def logout():
-    resp = RedirectResponse(url="/login", status_code=302)
+    resp = RedirectResponse(url=_prefix("/login"), status_code=302)
     resp.delete_cookie("session_token")
     return resp
 
@@ -825,7 +829,7 @@ def index(
         p = get_prospect(h["prospect_id"], db_path=db_path) or {}
         emp = _decrypt(p.get("empresa_enc", ""), f"Cliente {h['prospect_id']}")
         filas_v.append(f"""<tr>
-  <td><a href="/cliente/{h['prospect_id']}" style="color:var(--accent);text-decoration:none;font-weight:500">{emp}</a></td>
+  <td><a href="/dashboard/cliente/{h['prospect_id']}" style="color:var(--accent);text-decoration:none;font-weight:500">{emp}</a></td>
   <td>{_badge(h['tipo'].upper(), 'blue')}</td>
   <td class="num">${h['monto_usd']:,.0f}</td>
   <td class="num">${h['strike']:.4f}</td>
@@ -854,7 +858,7 @@ def index(
         f'<div class="alert-strip" style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;margin-bottom:12px">'
         f'<i class="ti ti-clock" style="color:var(--accent-orange);font-size:16px;margin-top:1px"></i>'
         f'<div>Tienes <strong>{n_pending} cobertura{"s" if n_pending != 1 else ""} pendiente{"s" if n_pending != 1 else ""} de aprobación</strong> — '
-        f'<a href="/pendientes" style="color:var(--accent-orange);font-weight:600">Revisar ahora →</a></div></div>'
+        f'<a href="/dashboard/pendientes" style="color:var(--accent-orange);font-weight:600">Revisar ahora →</a></div></div>'
     ) if n_pending else ""
 
     body = (
@@ -920,14 +924,14 @@ def lista_clientes(session_token: Optional[str] = Cookie(default=None), flash: s
         tok = _token_cliente(pid)
 
         filas.append(f"""<tr>
-  <td><a href="/cliente/{pid}" style="color:var(--accent);text-decoration:none;font-weight:500">{empresa}</a></td>
+  <td><a href="/dashboard/cliente/{pid}" style="color:var(--accent);text-decoration:none;font-weight:500">{empresa}</a></td>
   <td>{sector}</td>
   <td class="num">${vol_mes:,.0f}</td>
   <td style="min-width:140px">{bar}</td>
   <td class="num">{movs_usados}/{movs_max}</td>
   <td>{sbadge}</td>
-  <td><a href="/estrategia/{pid}" style="color:var(--accent);font-size:12px">Estrategia →</a></td>
-  <td><a href="/portal/{pid}?token={tok}" title="Portal cliente" style="color:var(--muted)" target="_blank"><i class="ti ti-external-link"></i></a></td>
+  <td><a href="/dashboard/estrategia/{pid}" style="color:var(--accent);font-size:12px">Estrategia →</a></td>
+  <td><a href="/dashboard/portal/{pid}?token={tok}" title="Portal cliente" style="color:var(--muted)" target="_blank"><i class="ti ti-external-link"></i></a></td>
 </tr>""")
 
     alertas_html = ""
@@ -952,8 +956,8 @@ def lista_clientes(session_token: Optional[str] = Cookie(default=None), flash: s
 </div>"""
 
     extra = (
-        '<a href="/clientes/nuevo" class="btn btn-primary"><i class="ti ti-user-plus"></i>Nuevo cliente</a>'
-        ' <a href="/registro" class="btn btn-outline"><i class="ti ti-plus"></i>Nueva cobertura</a>'
+        '<a href="/dashboard/clientes/nuevo" class="btn btn-primary"><i class="ti ti-user-plus"></i>Nuevo cliente</a>'
+        ' <a href="/dashboard/registro" class="btn btn-outline"><i class="ti ti-plus"></i>Nueva cobertura</a>'
     )
     body = (
         _topbar("Clientes", f"{len(prospects)} clientes registrados", extra)
@@ -983,7 +987,7 @@ def get_nuevo_cliente(session_token: Optional[str] = Cookie(default=None), flash
     opts_sectores = "".join(f'<option value="{s}">{s}</option>' for s in _SECTORES)
 
     form = f"""
-<form method="post" action="/clientes/nuevo">
+<form method="post" action="/dashboard/clientes/nuevo">
   <div class="card" style="margin-bottom:16px">
     <div class="card-title"><i class="ti ti-user"></i>Paso 1 — Contacto</div>
     <div class="form-grid">
@@ -1052,12 +1056,12 @@ def get_nuevo_cliente(session_token: Optional[str] = Cookie(default=None), flash
 
   <div style="display:flex;gap:10px">
     <button type="submit" class="btn btn-primary"><i class="ti ti-user-check"></i>Registrar cliente</button>
-    <a href="/clientes" class="btn btn-outline">Cancelar</a>
+    <a href="/dashboard/clientes" class="btn btn-outline">Cancelar</a>
   </div>
 </form>"""
 
     body = (
-        _topbar("Nuevo cliente", "", '<a href="/clientes" class="btn btn-outline"><i class="ti ti-arrow-left"></i>Volver</a>')
+        _topbar("Nuevo cliente", "", '<a href="/dashboard/clientes" class="btn btn-outline"><i class="ti ti-arrow-left"></i>Volver</a>')
         + flash_html
         + form
         + "</div>"
@@ -1116,11 +1120,11 @@ def post_nuevo_cliente(
 
         _insert_prospect(data, db_path=db_path)
         msg = urllib.parse.quote(f"Cliente '{empresa}' registrado correctamente.")
-        return RedirectResponse(url=f"/clientes?flash={msg}", status_code=302)
+        return RedirectResponse(url=_prefix(f"/clientes?flash={msg}"), status_code=302)
     except Exception as exc:
         logger.exception("Error registrando cliente")
         msg = urllib.parse.quote(f"Error: {exc}")
-        return RedirectResponse(url=f"/clientes/nuevo?flash={msg}", status_code=302)
+        return RedirectResponse(url=_prefix(f"/clientes/nuevo?flash={msg}"), status_code=302)
 
 
 # ---------------------------------------------------------------------------
@@ -1225,7 +1229,7 @@ def get_registro_documento(session_token: Optional[str] = Cookie(default=None)):
     )
 
     form = f"""
-<form method="post" action="/registro/documento" enctype="multipart/form-data">
+<form method="post" action="/dashboard/registro/documento" enctype="multipart/form-data">
   <div class="form-grid">
     <div class="field field-full">
       <label>Cliente</label>
@@ -1242,14 +1246,14 @@ def get_registro_documento(session_token: Optional[str] = Cookie(default=None)):
     <button type="submit" class="btn btn-primary">
       <i class="ti ti-sparkles"></i>Analizar documento
     </button>
-    <a href="/registro" class="btn btn-outline">Ingresar manualmente</a>
+    <a href="/dashboard/registro" class="btn btn-outline">Ingresar manualmente</a>
   </div>
 </form>"""
 
     body = (
         _topbar("Analizar confirmación bancaria",
                 "",
-                '<a href="/registro" class="btn btn-outline"><i class="ti ti-arrow-left"></i>Manual</a>')
+                '<a href="/dashboard/registro" class="btn btn-outline"><i class="ti ti-arrow-left"></i>Manual</a>')
         + '<div class="alert-strip alert-info" style="margin-bottom:16px">'
         + '<i class="ti ti-info-circle" style="color:var(--accent);font-size:16px"></i>'
         + '<div>Sube la confirmación de cobertura que te envió tu banco y extraeremos los datos automáticamente. '
@@ -1280,7 +1284,7 @@ async def post_registro_documento(
     data = await archivo.read()
     if len(data) > _MAX_UPLOAD_BYTES:
         msg = urllib.parse.quote("El archivo excede el límite de 10 MB.")
-        return RedirectResponse(url=f"/registro/documento?flash={msg}", status_code=302)
+        return RedirectResponse(url=_prefix(f"/registro/documento?flash={msg}"), status_code=302)
 
     filename = (archivo.filename or "").lower()
     mime_type = archivo.content_type or ""
@@ -1312,14 +1316,14 @@ async def post_registro_documento(
                 "No se pudieron extraer datos del documento. Ingresa los datos manualmente."
             )
         return RedirectResponse(
-            url=f"/registro?prospect_id={prospect_id}&flash={msg}",
+            url=_prefix(f"/registro?prospect_id={prospect_id}&flash={msg}"),
             status_code=302,
         )
 
     fields["prospect_id"] = prospect_id
     qp = _fields_to_qparams(fields)
     logger.info("Campos extraídos para prospect_id=%d: %s", prospect_id, fields)
-    return RedirectResponse(url=f"/registro?{qp}&auto=1", status_code=302)
+    return RedirectResponse(url=_prefix(f"/registro?{qp}&auto=1"), status_code=302)
 
 
 # ---------------------------------------------------------------------------
@@ -1417,7 +1421,7 @@ def get_registro(
     flash_html = f'<div class="flash flash-ok">{flash}</div>' if flash else ""
 
     form = f"""
-<form method="post" action="/registro">
+<form method="post" action="/dashboard/registro">
 <div class="form-grid">
   <div class="field field-full">
     <label>Cliente</label>
@@ -1474,8 +1478,8 @@ def get_registro(
 </div>
 <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">
   <button type="submit" class="btn btn-primary"><i class="ti ti-check"></i>Registrar cobertura</button>
-  <a href="/registro/documento" class="btn btn-outline"><i class="ti ti-sparkles"></i>Analizar documento</a>
-  <a href="/clientes" class="btn btn-outline">Cancelar</a>
+  <a href="/dashboard/registro/documento" class="btn btn-outline"><i class="ti ti-sparkles"></i>Analizar documento</a>
+  <a href="/dashboard/clientes" class="btn btn-outline">Cancelar</a>
 </div>
 </form>"""
 
@@ -1542,11 +1546,11 @@ def post_registro(
 
         insert_hedge(data, db_path=db_path)
         msg = urllib.parse.quote(f"Cobertura {tipo.upper()} registrada correctamente.")
-        return RedirectResponse(url=f"/cliente/{prospect_id}?flash={msg}", status_code=302)
+        return RedirectResponse(url=_prefix(f"/cliente/{prospect_id}?flash={msg}"), status_code=302)
     except Exception as exc:
         logger.exception("Error registrando cobertura")
         msg = urllib.parse.quote(f"Error: {exc}")
-        return RedirectResponse(url=f"/registro?flash={msg}", status_code=302)
+        return RedirectResponse(url=_prefix(f"/registro?flash={msg}"), status_code=302)
 
 
 # ---------------------------------------------------------------------------
@@ -1670,7 +1674,7 @@ def vista_estrategia(
 
     flash_html = f'<div class="flash flash-ok">{flash}</div>' if flash else ""
     body = (
-        _topbar(f"Estrategia · {empresa}", "", f'<a href="/cliente/{prospect_id}" class="btn btn-outline"><i class="ti ti-arrow-left"></i>Ver detalle</a>')
+        _topbar(f"Estrategia · {empresa}", "", f'<a href="/dashboard/cliente/{prospect_id}" class="btn btn-outline"><i class="ti ti-arrow-left"></i>Ver detalle</a>')
         + flash_html
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;flex-wrap:wrap">'
         + '<div>'
@@ -1751,7 +1755,7 @@ def post_estrategia(
         logger.exception("Error guardando estrategia")
         msg = urllib.parse.quote(f"Error: {exc}")
 
-    return RedirectResponse(url=f"/estrategia/{prospect_id}?flash={msg}", status_code=302)
+    return RedirectResponse(url=_prefix(f"/estrategia/{prospect_id}?flash={msg}"), status_code=302)
 
 
 # ---------------------------------------------------------------------------
@@ -1938,13 +1942,13 @@ def detalle_cliente(
 </div>"""
 
     accion = f"""
-<form method="post" action="/cliente/{prospect_id}/reporte">
+<form method="post" action="/dashboard/cliente/{prospect_id}/reporte">
   <button type="submit" class="btn btn-green"><i class="ti ti-file-text"></i>Generar reporte</button>
 </form>"""
 
     # Recuadro copiable del portal cliente
     tok = _token_cliente(prospect_id)
-    portal_url = f"/portal/{prospect_id}?token={tok}"
+    portal_url = f"/dashboard/portal/{prospect_id}?token={tok}"
     portal_card = f"""
 <div class="card" style="margin-top:16px">
   <div class="card-title"><i class="ti ti-share"></i>Compartir portal con cliente</div>
@@ -1963,7 +1967,7 @@ def detalle_cliente(
   </div>
 </div>"""
 
-    extra = f'<a href="/estrategia/{prospect_id}" class="btn btn-outline"><i class="ti ti-stairs"></i>Ver estrategia</a>'
+    extra = f'<a href="/dashboard/estrategia/{prospect_id}" class="btn btn-outline"><i class="ti ti-stairs"></i>Ver estrategia</a>'
     body = (
         _topbar(empresa, prospect.get("sector",""), extra)
         + flash_html
@@ -2002,7 +2006,7 @@ def generar_reporte(
         flash_msg = f"Error al generar reporte: {exc}"
 
     encoded = urllib.parse.quote(flash_msg)
-    return RedirectResponse(url=f"/cliente/{prospect_id}?flash={encoded}", status_code=302)
+    return RedirectResponse(url=_prefix(f"/cliente/{prospect_id}?flash={encoded}"), status_code=302)
 
 
 # ---------------------------------------------------------------------------
@@ -2053,7 +2057,7 @@ def portal_cliente(
     mtm = pnl.get("total_mtm_mxn", 0.0)
 
     is_consultor = _sesion_valida(session_token)
-    back_link = '<a href="/" style="color:#a8a8a8;text-decoration:none;font-size:12px;margin-right:12px">← Panel consultor</a>' if is_consultor else ""
+    back_link = '<a href="/dashboard/" style="color:#a8a8a8;text-decoration:none;font-size:12px;margin-right:12px">← Panel consultor</a>' if is_consultor else ""
     t_param = f"?token={token}" if token else ""
     nav = f"""
 <div style="background:var(--sidebar-bg);padding:14px 24px;display:flex;align-items:center;justify-content:space-between">
@@ -2063,9 +2067,9 @@ def portal_cliente(
     <span style="color:#fff;font-weight:600;font-size:14px">{empresa}</span>
   </div>
   <div style="display:flex;gap:16px">
-    <a href="/portal/{prospect_id}{t_param}" style="color:#a8a8a8;text-decoration:none;font-size:13px">Resumen</a>
-    <a href="/portal/{prospect_id}/coberturas{t_param}" style="color:#a8a8a8;text-decoration:none;font-size:13px">Coberturas</a>
-    <a href="/portal/{prospect_id}/estrategia{t_param}" style="color:#a8a8a8;text-decoration:none;font-size:13px">Estrategia</a>
+    <a href="/dashboard/portal/{prospect_id}{t_param}" style="color:#a8a8a8;text-decoration:none;font-size:13px">Resumen</a>
+    <a href="/dashboard/portal/{prospect_id}/coberturas{t_param}" style="color:#a8a8a8;text-decoration:none;font-size:13px">Coberturas</a>
+    <a href="/dashboard/portal/{prospect_id}/estrategia{t_param}" style="color:#a8a8a8;text-decoration:none;font-size:13px">Estrategia</a>
   </div>
 </div>"""
 
@@ -2125,7 +2129,7 @@ def portal_coberturas(
     historial = [h for h in get_client_hedges(prospect_id, db_path=db_path) if h.get("estado") != "activa"]
 
     is_consultor = _sesion_valida(session_token)
-    back_link = '<a href="/" style="color:#a8a8a8;text-decoration:none;font-size:12px;margin-right:12px">← Panel consultor</a>' if is_consultor else ""
+    back_link = '<a href="/dashboard/" style="color:#a8a8a8;text-decoration:none;font-size:12px;margin-right:12px">← Panel consultor</a>' if is_consultor else ""
     t_param = f"?token={token}" if token else ""
     nav = f"""
 <div style="background:var(--sidebar-bg);padding:14px 24px;display:flex;align-items:center;justify-content:space-between">
@@ -2135,9 +2139,9 @@ def portal_coberturas(
     <span style="color:#fff;font-weight:600;font-size:14px">{empresa}</span>
   </div>
   <div style="display:flex;gap:16px">
-    <a href="/portal/{prospect_id}{t_param}" style="color:#a8a8a8;text-decoration:none;font-size:13px">Resumen</a>
-    <a href="/portal/{prospect_id}/coberturas{t_param}" style="color:#fff;text-decoration:none;font-size:13px;font-weight:600">Coberturas</a>
-    <a href="/portal/{prospect_id}/estrategia{t_param}" style="color:#a8a8a8;text-decoration:none;font-size:13px">Estrategia</a>
+    <a href="/dashboard/portal/{prospect_id}{t_param}" style="color:#a8a8a8;text-decoration:none;font-size:13px">Resumen</a>
+    <a href="/dashboard/portal/{prospect_id}/coberturas{t_param}" style="color:#fff;text-decoration:none;font-size:13px;font-weight:600">Coberturas</a>
+    <a href="/dashboard/portal/{prospect_id}/estrategia{t_param}" style="color:#a8a8a8;text-decoration:none;font-size:13px">Estrategia</a>
   </div>
 </div>"""
 
@@ -2239,7 +2243,7 @@ def portal_upload_get(
 
     empresa = _decrypt(prospect.get("empresa_enc", ""), f"Cliente {prospect_id}")
     is_consultor = _sesion_valida(session_token)
-    back_link = '<a href="/" style="color:#a8a8a8;text-decoration:none;font-size:12px;margin-right:12px">← Panel consultor</a>' if is_consultor else ""
+    back_link = '<a href="/dashboard/" style="color:#a8a8a8;text-decoration:none;font-size:12px;margin-right:12px">← Panel consultor</a>' if is_consultor else ""
     t_param = f"?token={token}" if token else ""
     flash_html = f'<div class="flash flash-ok" style="margin-bottom:16px">{flash}</div>' if flash else ""
 
@@ -2251,15 +2255,15 @@ def portal_upload_get(
     <span style="color:#fff;font-weight:600;font-size:14px">{empresa}</span>
   </div>
   <div style="display:flex;gap:16px">
-    <a href="/portal/{prospect_id}{t_param}" style="color:#a8a8a8;text-decoration:none;font-size:13px">Resumen</a>
-    <a href="/portal/{prospect_id}/coberturas{t_param}" style="color:#a8a8a8;text-decoration:none;font-size:13px">Coberturas</a>
-    <a href="/portal/{prospect_id}/estrategia{t_param}" style="color:#a8a8a8;text-decoration:none;font-size:13px">Estrategia</a>
+    <a href="/dashboard/portal/{prospect_id}{t_param}" style="color:#a8a8a8;text-decoration:none;font-size:13px">Resumen</a>
+    <a href="/dashboard/portal/{prospect_id}/coberturas{t_param}" style="color:#a8a8a8;text-decoration:none;font-size:13px">Coberturas</a>
+    <a href="/dashboard/portal/{prospect_id}/estrategia{t_param}" style="color:#a8a8a8;text-decoration:none;font-size:13px">Estrategia</a>
   </div>
 </div>"""
 
     tok_param = f"token={token}&" if token else ""
     form = f"""
-<form method="post" action="/portal/{prospect_id}/upload?{tok_param}" enctype="multipart/form-data">
+<form method="post" action="/dashboard/portal/{prospect_id}/upload?{tok_param}" enctype="multipart/form-data">
   <div class="field" style="margin-bottom:16px">
     <label>Documento de confirmación de cobertura</label>
     <input type="file" name="archivo" accept=".pdf,.png,.jpg,.jpeg" required
@@ -2270,7 +2274,7 @@ def portal_upload_get(
     <button type="submit" class="btn btn-primary">
       <i class="ti ti-sparkles"></i>Analizar y registrar
     </button>
-    <a href="/portal/{prospect_id}/coberturas{t_param}" class="btn btn-outline">Cancelar</a>
+    <a href="/dashboard/portal/{prospect_id}/coberturas{t_param}" class="btn btn-outline">Cancelar</a>
   </div>
 </form>"""
 
@@ -2307,13 +2311,12 @@ async def portal_upload_post(
         return HTMLResponse(_login_page("Acceso denegado", ""), status_code=403)
 
     t_param = f"?token={token}" if token else ""
-    coberturas_url = f"/portal/{prospect_id}/coberturas{t_param}"
-    upload_url = f"/portal/{prospect_id}/upload{t_param}"
+    coberturas_url = _prefix(f"/portal/{prospect_id}/coberturas{t_param}")
+    upload_url = _prefix(f"/portal/{prospect_id}/upload{t_param}")
 
     data = await archivo.read()
     if len(data) > _MAX_UPLOAD_BYTES:
         msg = urllib.parse.quote("El archivo excede el límite de 10 MB.")
-        sep = "&" if token else "?"
         return RedirectResponse(url=f"{upload_url}{'&' if token else '?'}flash={msg}", status_code=302)
 
     filename = (archivo.filename or "").lower()
@@ -2399,7 +2402,7 @@ def portal_estrategia(
     levels  = get_strategy_levels(strat["id"], db_path=db_path) if strat else []
 
     is_consultor = _sesion_valida(session_token)
-    back_link = '<a href="/" style="color:#a8a8a8;text-decoration:none;font-size:12px;margin-right:12px">← Panel consultor</a>' if is_consultor else ""
+    back_link = '<a href="/dashboard/" style="color:#a8a8a8;text-decoration:none;font-size:12px;margin-right:12px">← Panel consultor</a>' if is_consultor else ""
     t_param = f"?token={token}" if token else ""
     nav = f"""
 <div style="background:var(--sidebar-bg);padding:14px 24px;display:flex;align-items:center;justify-content:space-between">
@@ -2409,9 +2412,9 @@ def portal_estrategia(
     <span style="color:#fff;font-weight:600;font-size:14px">{empresa}</span>
   </div>
   <div style="display:flex;gap:16px">
-    <a href="/portal/{prospect_id}{t_param}" style="color:#a8a8a8;text-decoration:none;font-size:13px">Resumen</a>
-    <a href="/portal/{prospect_id}/coberturas{t_param}" style="color:#a8a8a8;text-decoration:none;font-size:13px">Coberturas</a>
-    <a href="/portal/{prospect_id}/estrategia{t_param}" style="color:#fff;text-decoration:none;font-size:13px;font-weight:600">Estrategia</a>
+    <a href="/dashboard/portal/{prospect_id}{t_param}" style="color:#a8a8a8;text-decoration:none;font-size:13px">Resumen</a>
+    <a href="/dashboard/portal/{prospect_id}/coberturas{t_param}" style="color:#a8a8a8;text-decoration:none;font-size:13px">Coberturas</a>
+    <a href="/dashboard/portal/{prospect_id}/estrategia{t_param}" style="color:#fff;text-decoration:none;font-size:13px;font-weight:600">Estrategia</a>
   </div>
 </div>"""
 
@@ -2482,7 +2485,7 @@ def pendientes_lista(
         empresa = _decrypt(prospect.get("empresa_enc", ""), f"Cliente {p['prospect_id']}")
         banco = p.get("banco_ejecutor") or "—"
         filas.append(f"""<tr>
-  <td><a href="/cliente/{p['prospect_id']}" style="color:var(--accent);text-decoration:none;font-weight:500">{empresa}</a></td>
+  <td><a href="/dashboard/cliente/{p['prospect_id']}" style="color:var(--accent);text-decoration:none;font-weight:500">{empresa}</a></td>
   <td>{_badge((p.get("tipo") or "—").upper(), "blue")}</td>
   <td class="num">${(p.get("monto_usd") or 0):,.0f}</td>
   <td class="num">${(p.get("strike") or 0):.4f}</td>
@@ -2490,11 +2493,11 @@ def pendientes_lista(
   <td style="font-size:12px;color:var(--muted)">{p.get("created_at","")[:16]}</td>
   <td>
     <div style="display:flex;gap:6px">
-      <a href="/pendientes/{p['id']}" class="btn btn-outline" style="font-size:12px;padding:4px 10px">Ver detalle</a>
-      <form method="post" action="/pendientes/{p['id']}/aprobar" style="display:inline">
+      <a href="/dashboard/pendientes/{p['id']}" class="btn btn-outline" style="font-size:12px;padding:4px 10px">Ver detalle</a>
+      <form method="post" action="/dashboard/pendientes/{p['id']}/aprobar" style="display:inline">
         <button type="submit" class="btn btn-primary" style="font-size:12px;padding:4px 10px;background:var(--accent-green);border-color:var(--accent-green)">Aprobar</button>
       </form>
-      <form method="post" action="/pendientes/{p['id']}/rechazar" style="display:inline">
+      <form method="post" action="/dashboard/pendientes/{p['id']}/rechazar" style="display:inline">
         <button type="submit" class="btn btn-outline" style="font-size:12px;padding:4px 10px;color:var(--accent-red);border-color:var(--accent-red)">Rechazar</button>
       </form>
     </div>
@@ -2546,7 +2549,7 @@ def pendiente_detalle(
         return f'<div style="display:flex;gap:16px;padding:10px 0;border-bottom:1px solid var(--border)"><span style="width:200px;color:var(--muted);font-size:13px">{label}</span><span style="font-weight:500">{value or "—"}</span></div>'
 
     campos = (
-        _row("Cliente", f'<a href="/cliente/{p["prospect_id"]}" style="color:var(--accent)">{empresa}</a>')
+        _row("Cliente", f'<a href="/dashboard/cliente/{p["prospect_id"]}" style="color:var(--accent)">{empresa}</a>')
         + _row("Tipo", _badge((p.get("tipo") or "—").upper(), "blue"))
         + _row("Monto USD", f'${(p.get("monto_usd") or 0):,.0f}')
         + _row("Strike (put / floor)", f'${(p.get("strike") or 0):.4f}')
@@ -2564,17 +2567,17 @@ def pendiente_detalle(
 
     acciones = f"""
 <div style="display:flex;gap:12px;margin-top:24px">
-  <form method="post" action="/pendientes/{pending_id}/aprobar">
+  <form method="post" action="/dashboard/pendientes/{pending_id}/aprobar">
     <button type="submit" class="btn btn-primary" style="background:var(--accent-green);border-color:var(--accent-green)">
       <i class="ti ti-check"></i>Aprobar y registrar cobertura
     </button>
   </form>
-  <form method="post" action="/pendientes/{pending_id}/rechazar">
+  <form method="post" action="/dashboard/pendientes/{pending_id}/rechazar">
     <button type="submit" class="btn btn-outline" style="color:var(--accent-red);border-color:var(--accent-red)">
       <i class="ti ti-x"></i>Rechazar
     </button>
   </form>
-  <a href="/pendientes" class="btn btn-outline">← Volver</a>
+  <a href="/dashboard/pendientes" class="btn btn-outline">← Volver</a>
 </div>"""
 
     body = (
@@ -2600,7 +2603,7 @@ def pendiente_aprobar(
     db_path = _db()
     p = get_pending_hedge(pending_id, db_path=db_path)
     if not p:
-        return RedirectResponse(url="/pendientes", status_code=302)
+        return RedirectResponse(url=_prefix("/pendientes"), status_code=302)
 
     hedge_data: dict = {
         "prospect_id":       p["prospect_id"],
@@ -2623,7 +2626,7 @@ def pendiente_aprobar(
     insert_hedge(hedge_data, db_path=db_path)
     update_pending_status(pending_id, "aprobada", db_path=db_path)
     msg = urllib.parse.quote("Cobertura aprobada y registrada.")
-    return RedirectResponse(url=f"/pendientes?flash={msg}", status_code=302)
+    return RedirectResponse(url=_prefix(f"/pendientes?flash={msg}"), status_code=302)
 
 
 # ---------------------------------------------------------------------------
@@ -2640,7 +2643,7 @@ def pendiente_rechazar(
 
     update_pending_status(pending_id, "rechazada", db_path=_db())
     msg = urllib.parse.quote("Cobertura rechazada.")
-    return RedirectResponse(url=f"/pendientes?flash={msg}", status_code=302)
+    return RedirectResponse(url=_prefix(f"/pendientes?flash={msg}"), status_code=302)
 
 
 # ---------------------------------------------------------------------------
